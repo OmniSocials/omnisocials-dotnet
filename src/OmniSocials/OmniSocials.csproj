@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OmniSocials</RootNamespace>
+    <AssemblyName>OmniSocials</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>OmniSocials</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>OmniSocials</Authors>
+    <Company>OmniSocials</Company>
+    <Description>Official .NET client for the OmniSocials API. Schedule and publish posts to Instagram, Facebook, LinkedIn, YouTube, TikTok, X, Pinterest, Bluesky, Threads, Mastodon, and Google Business from one API. Includes automatic retries, rich error types, and webhook signature verification.</Description>
+    <PackageTags>omnisocials;social-media;api;sdk;instagram;facebook;linkedin;youtube;tiktok;x;twitter;pinterest;bluesky;threads;mastodon;scheduler</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/OmniSocials</RepositoryUrl>
+    <PackageProjectUrl>https://docs.omnisocials.com</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
