@@ -51,6 +51,7 @@ public sealed class OmniSocialsClient : IDisposable
     public FoldersResource Folders { get; }
     public AccountsResource Accounts { get; }
     public AnalyticsResource Analytics { get; }
+    public AudioResource Audio { get; }
     public LocationsResource Locations { get; }
     public WebhooksResource Webhooks { get; }
 
@@ -91,6 +92,7 @@ public sealed class OmniSocialsClient : IDisposable
         Folders = new FoldersResource(this);
         Accounts = new AccountsResource(this);
         Analytics = new AnalyticsResource(this);
+        Audio = new AudioResource(this);
         Locations = new LocationsResource(this);
         Webhooks = new WebhooksResource(this);
     }
