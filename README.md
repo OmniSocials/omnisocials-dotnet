@@ -352,6 +352,57 @@ if (check!.Value.GetProperty("valid").GetBoolean())
 }
 ```
 
+## Inbox (social inbox)
+
+Conversations (DMs, comments, mentions) across connected platforms, their
+message threads, and replies. The list endpoints use **cursor pagination**: page
+on by passing the previous response's `pagination.next_cursor` back as `Cursor`
+while `pagination.has_more` is true.
+
+```csharp
+var page = await client.Inbox.ListConversationsAsync(new InboxConversationListParams
+{
+    Platform = "instagram",
+    Type = "comment",
+    Unread = true,
+    Limit = 50,
+});
+
+var conversation = page!.Value.GetProperty("data")[0];
+var conversationId = conversation.GetProperty("conversation_id").GetString()!;
+
+// Full thread for one conversation (newest first). The id is URL-encoded for
+// you, so pass it exactly as returned - LinkedIn ids contain ":" and "()".
+await client.Inbox.GetMessagesAsync(conversationId, new InboxMessageListParams { Limit = 20 });
+
+// Mark every message in the conversation as read.
+var read = await client.Inbox.MarkReadAsync(conversationId);
+Console.WriteLine(read!.Value.GetProperty("marked_read").GetInt32());
+
+// Reply into the conversation, optionally attaching one media asset by URL.
+await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
+{
+    Text = "Thanks for reaching out!",
+    AttachmentUrl = "https://example.com/reply.jpg",
+    AttachmentType = "image",
+});
+```
+
+Like every resource, these methods return the raw `JsonElement?`. Optional typed
+models mirror the payloads if you prefer strong typing:
+
+```csharp
+var typed = page!.Value.Deserialize<InboxConversationsResponse>();
+foreach (var c in typed!.Data)
+{
+    Console.WriteLine($"{c.Platform} {c.Type}: {c.UnreadCount} unread from {c.Participant.Username}");
+}
+if (typed.Pagination.HasMore)
+{
+    await client.Inbox.ListConversationsAsync(new InboxConversationListParams { Cursor = typed.Pagination.NextCursor });
+}
+```
+
 ## Webhooks
 
 ### Manage endpoints

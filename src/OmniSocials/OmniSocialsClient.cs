@@ -54,6 +54,7 @@ public sealed class OmniSocialsClient : IDisposable
     public AudioResource Audio { get; }
     public LocationsResource Locations { get; }
     public WebhooksResource Webhooks { get; }
+    public InboxResource Inbox { get; }
 
     /// <summary>
     /// Create a client. The API key comes from <paramref name="options"/> or, when not
@@ -95,6 +96,7 @@ public sealed class OmniSocialsClient : IDisposable
         Audio = new AudioResource(this);
         Locations = new LocationsResource(this);
         Webhooks = new WebhooksResource(this);
+        Inbox = new InboxResource(this);
     }
 
     /// <summary><c>GET /health</c> (no scopes required).</summary>
