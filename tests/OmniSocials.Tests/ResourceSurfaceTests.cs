@@ -5,7 +5,7 @@ using Xunit;
 namespace OmniSocials.Tests;
 
 /// <summary>
-/// Guards the full v1 endpoint surface (39 endpoints + GET /health): every
+/// Guards the full v1 endpoint surface (44 endpoints + GET /health): every
 /// resource method must exist, return Task&lt;JsonElement?&gt;, and accept a
 /// CancellationToken.
 /// </summary>
@@ -17,6 +17,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(MediaResource),
         "ListAsync,GetAsync,UploadAsync,UploadFromUrlAsync,UploadFromBase64Async,CreateUploadUrlAsync,CheckAsync,UpdateAsync,DeleteAsync")]
     [InlineData(typeof(FoldersResource), "ListAsync,CreateAsync,UpdateAsync,DeleteAsync")]
+    [InlineData(typeof(HashtagSetsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync")]
     [InlineData(typeof(AccountsResource), "ListAsync,GetAsync")]
     [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
@@ -51,6 +52,7 @@ public class ResourceSurfaceTests
         Assert.Equal(typeof(PostsResource), client.GetProperty("Posts")!.PropertyType);
         Assert.Equal(typeof(MediaResource), client.GetProperty("Media")!.PropertyType);
         Assert.Equal(typeof(FoldersResource), client.GetProperty("Folders")!.PropertyType);
+        Assert.Equal(typeof(HashtagSetsResource), client.GetProperty("HashtagSets")!.PropertyType);
         Assert.Equal(typeof(AccountsResource), client.GetProperty("Accounts")!.PropertyType);
         Assert.Equal(typeof(AnalyticsResource), client.GetProperty("Analytics")!.PropertyType);
         Assert.Equal(typeof(LocationsResource), client.GetProperty("Locations")!.PropertyType);

@@ -42,14 +42,20 @@ public class PostCreateParams
 
     /// <summary>
     /// Media Library ids: either a <c>string[]</c> shared across platforms or a
-    /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>.
+    /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>. Entries may also
+    /// be <c>{ id, alt }</c> objects (e.g. <c>new { id = "...", alt = "..." }</c>)
+    /// carrying a per-media alt text / accessibility description (max 1500
+    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), and Pinterest.
     /// </summary>
     [JsonPropertyName("media_ids")]
     public object? MediaIds { get; set; }
 
     /// <summary>
     /// Public media URLs: either a <c>string[]</c> shared across platforms or a
-    /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>.
+    /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>. Entries may also
+    /// be <c>{ url, alt }</c> objects (e.g. <c>new { url = "https://...", alt = "..." }</c>)
+    /// carrying a per-media alt text / accessibility description (max 1500
+    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), and Pinterest.
     /// </summary>
     [JsonPropertyName("media_urls")]
     public object? MediaUrls { get; set; }
@@ -82,6 +88,26 @@ public class PostCreateParams
     [JsonPropertyName("user_tags")]
     public IList<UserTag>? UserTags { get; set; }
 
+    /// <summary>
+    /// Name of a saved hashtag set (case-insensitive). Applies the set once at
+    /// create time; tags already in a caption are skipped; Instagram's
+    /// 30-hashtag cap returns error code <c>hashtag_limit_exceeded</c>.
+    /// </summary>
+    [JsonPropertyName("hashtag_set")]
+    public string? HashtagSet { get; set; }
+
+    /// <summary>Id of a saved hashtag set to apply at create time (see <see cref="HashtagSet"/>).</summary>
+    [JsonPropertyName("hashtag_set_id")]
+    public string? HashtagSetId { get; set; }
+
+    /// <summary>Where the hashtags go: "caption_append" (default) or "first_comment".</summary>
+    [JsonPropertyName("hashtag_placement")]
+    public string? HashtagPlacement { get; set; }
+
+    /// <summary>Restrict the hashtags to a subset of the post's channels. Omit for all.</summary>
+    [JsonPropertyName("hashtag_platforms")]
+    public IList<string>? HashtagPlatforms { get; set; }
+
     // Platform-specific option blocks. Dictionary values serialize as-is,
     // including explicit nulls (unlike null POCO properties, which are omitted).
 
@@ -110,6 +136,8 @@ public class PostCreateParams
     /// X (Twitter) options: <c>reply_settings</c>, <c>paid_partnership</c>,
     /// <c>made_with_ai</c>, and <c>thread_parts</c> (2-25 parts, each
     /// <c>{ text, media_ids?, media_urls? }</c>, 280 chars per part).
+    /// Thread-part media entries accept the same <c>{ url|id, alt }</c>
+    /// objects as the top-level media fields.
     /// </summary>
     [JsonPropertyName("x")]
     public Dictionary<string, object?>? X { get; set; }
@@ -144,11 +172,11 @@ public class PostUpdateParams
     [JsonPropertyName("channels")]
     public IList<string>? Channels { get; set; }
 
-    /// <summary>Media Library ids: a string[] or a per-platform map.</summary>
+    /// <summary>Media Library ids: a string[] or a per-platform map. Entries accept <c>{ id, alt }</c> objects for per-media alt text.</summary>
     [JsonPropertyName("media_ids")]
     public object? MediaIds { get; set; }
 
-    /// <summary>Public media URLs: a string[] or a per-platform map.</summary>
+    /// <summary>Public media URLs: a string[] or a per-platform map. Entries accept <c>{ url, alt }</c> objects for per-media alt text.</summary>
     [JsonPropertyName("media_urls")]
     public object? MediaUrls { get; set; }
 

@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.1.0";
+    public const string Version = "0.2.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
@@ -49,6 +49,7 @@ public sealed class OmniSocialsClient : IDisposable
     public PostsResource Posts { get; }
     public MediaResource Media { get; }
     public FoldersResource Folders { get; }
+    public HashtagSetsResource HashtagSets { get; }
     public AccountsResource Accounts { get; }
     public AnalyticsResource Analytics { get; }
     public AudioResource Audio { get; }
@@ -91,6 +92,7 @@ public sealed class OmniSocialsClient : IDisposable
         Posts = new PostsResource(this);
         Media = new MediaResource(this);
         Folders = new FoldersResource(this);
+        HashtagSets = new HashtagSetsResource(this);
         Accounts = new AccountsResource(this);
         Analytics = new AnalyticsResource(this);
         Audio = new AudioResource(this);

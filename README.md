@@ -112,6 +112,27 @@ await client.Posts.CreateAndPublishAsync(new PostCreateParams
 });
 ```
 
+### Per-media alt text
+
+Every `MediaUrls` / `MediaIds` entry accepts either a plain string or an object with an `alt` accessibility description (max 1500 chars): `new { url, alt }` for `MediaUrls`, `new { id, alt }` for `MediaIds`. Alt text is delivered to Mastodon (media description), Bluesky (embed alt), X (photos and GIFs), and Pinterest (pin alt text). Strings and objects can be mixed, and the same shape works in per-platform maps and `thread_parts` media.
+
+```csharp
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Sunrise over the harbor",
+    Channels = new[] { "mastodon", "bluesky" },
+    ScheduledAt = "2026-08-01T09:00:00Z",
+    MediaUrls = new object[]
+    {
+        new
+        {
+            url = "https://example.com/harbor.jpg",
+            alt = "A small sailboat crossing a calm harbor at sunrise, sky in deep orange",
+        },
+    },
+});
+```
+
 ### Post with platform-specific options
 
 ```csharp
@@ -286,6 +307,42 @@ var folderId = created!.Value.GetProperty("data").GetProperty("id").GetString()!
 await client.Folders.UpdateAsync(folderId, new FolderUpdateParams { Name = "Campaigns 2026" });
 await client.Folders.UpdateAsync(folderId, new FolderUpdateParams { MoveToTopLevel = true });
 await client.Folders.DeleteAsync(folderId); // files move to root, subfolders move up
+```
+
+## Hashtag Sets
+
+Save reusable hashtag groups and apply them to posts at create time. Uses the `posts:read` / `posts:write` scopes.
+
+```csharp
+var created = await client.HashtagSets.CreateAsync(new HashtagSetCreateParams
+{
+    Name = "Launch",
+    Hashtags = new[] { "saas", "buildinpublic", "startup" }, // or one string: "#saas #buildinpublic #startup"
+});
+var setId = created!.Value.GetProperty("data").GetProperty("id").GetString()!;
+Console.WriteLine(created.Value.GetProperty("data").GetProperty("preview").GetString()); // "#saas #buildinpublic #startup"
+
+await client.HashtagSets.ListAsync();
+await client.HashtagSets.GetAsync(setId);
+await client.HashtagSets.UpdateAsync(setId, new HashtagSetUpdateParams
+{
+    Hashtags = new[] { "saas", "founder" }, // replaces the full list
+});
+await client.HashtagSets.DeleteAsync(setId); // resolves to null (204)
+```
+
+Apply a set when creating a post with `HashtagSet` (the set name, case-insensitive) or `HashtagSetId`. The set is applied once at create time and tags already in the caption are skipped. `HashtagPlacement` is `"caption_append"` (default) or `"first_comment"`, and `HashtagPlatforms` restricts the hashtags to a subset of the post's channels. Instagram's 30-hashtag cap returns error code `hashtag_limit_exceeded`.
+
+```csharp
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Launch day!",
+    Channels = new[] { "instagram", "x" },
+    ScheduledAt = "2026-08-01T09:00:00Z",
+    HashtagSet = "Launch",
+    HashtagPlacement = "first_comment",
+    HashtagPlatforms = new[] { "instagram" },
+});
 ```
 
 ## Accounts

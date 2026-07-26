@@ -118,6 +118,41 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Hashtag_set_fields_serialize_on_post_create()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\"}}");
+        handler.Enqueue(HttpStatusCode.Created, "{\"data\":{\"id\":\"hs1\"}}");
+        using var client = CreateClient(handler);
+
+        await client.Posts.CreateAsync(new PostCreateParams
+        {
+            Content = "Launch day!",
+            Channels = new[] { "instagram", "x" },
+            HashtagSet = "Launch",
+            HashtagPlacement = "first_comment",
+            HashtagPlatforms = new[] { "instagram" },
+        });
+
+        var body = Parse(handler.RequestBodies[0]!);
+        Assert.Equal("Launch", body.GetProperty("hashtag_set").GetString());
+        Assert.Equal("first_comment", body.GetProperty("hashtag_placement").GetString());
+        Assert.Equal("instagram", body.GetProperty("hashtag_platforms")[0].GetString());
+        Assert.False(body.TryGetProperty("hashtag_set_id", out _));
+
+        // Create-side: hashtags accepts a string[] (or a single string).
+        await client.HashtagSets.CreateAsync(new HashtagSetCreateParams
+        {
+            Name = "Launch",
+            Hashtags = new[] { "saas", "startup" },
+        });
+
+        var setBody = Parse(handler.RequestBodies[1]!);
+        Assert.Equal("https://api.test.local/v1/hashtag-sets", handler.Requests[1].RequestUri!.ToString());
+        Assert.Equal("saas", setBody.GetProperty("hashtags")[0].GetString());
+    }
+
+    [Fact]
     public async Task Folder_move_to_top_level_sends_explicit_null_parent_id()
     {
         var handler = new StubHttpMessageHandler();
