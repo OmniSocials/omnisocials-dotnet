@@ -114,7 +114,7 @@ await client.Posts.CreateAndPublishAsync(new PostCreateParams
 
 ### Per-media alt text
 
-Every `MediaUrls` / `MediaIds` entry accepts either a plain string or an object with an `alt` accessibility description (max 1500 chars): `new { url, alt }` for `MediaUrls`, `new { id, alt }` for `MediaIds`. Alt text is delivered to Mastodon (media description), Bluesky (embed alt), X (photos and GIFs), and Pinterest (pin alt text). Strings and objects can be mixed, and the same shape works in per-platform maps and `thread_parts` media.
+Every `MediaUrls` / `MediaIds` entry accepts either a plain string or an object with an `alt` accessibility description (max 1500 chars): `new { url, alt }` for `MediaUrls`, `new { id, alt }` for `MediaIds`. Alt text is delivered to Mastodon (media description), Bluesky (embed alt), X (photos and GIFs), Pinterest (pin alt text), Instagram (images), and LinkedIn (images). Strings and objects can be mixed, and the same shape works in per-platform maps and `thread_parts` media.
 
 ```csharp
 await client.Posts.CreateAsync(new PostCreateParams
@@ -190,7 +190,7 @@ await client.Posts.DeleteAsync(first);  // resolves to null (204)
 
 ### Recent platform posts
 
-Fetch recent posts live from the connected platform APIs, including content published outside OmniSocials. Useful for brand-new workspaces where `ListAsync` is empty. Requires the `analytics:read` scope.
+Fetch recent posts live from the connected platform APIs, including content published outside OmniSocials. Useful for brand-new workspaces where `ListAsync` is empty. Requires the `analytics:read` scope. Each record includes `duration_seconds` (integer, nullable): the video length in whole seconds where the platform reports it — currently TikTok and YouTube; `null` for images and for platforms that don't expose it.
 
 ```csharp
 var recent = await client.Posts.RecentPlatformAsync(new RecentPlatformParams

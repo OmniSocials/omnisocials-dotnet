@@ -45,7 +45,8 @@ public class PostCreateParams
     /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>. Entries may also
     /// be <c>{ id, alt }</c> objects (e.g. <c>new { id = "...", alt = "..." }</c>)
     /// carrying a per-media alt text / accessibility description (max 1500
-    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), and Pinterest.
+    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), Pinterest,
+    /// Instagram (images), and LinkedIn (images).
     /// </summary>
     [JsonPropertyName("media_ids")]
     public object? MediaIds { get; set; }
@@ -55,7 +56,8 @@ public class PostCreateParams
     /// per-platform <c>Dictionary&lt;string, string[]&gt;</c>. Entries may also
     /// be <c>{ url, alt }</c> objects (e.g. <c>new { url = "https://...", alt = "..." }</c>)
     /// carrying a per-media alt text / accessibility description (max 1500
-    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), and Pinterest.
+    /// chars), delivered to Mastodon, Bluesky, X (photos/GIFs), Pinterest,
+    /// Instagram (images), and LinkedIn (images).
     /// </summary>
     [JsonPropertyName("media_urls")]
     public object? MediaUrls { get; set; }
