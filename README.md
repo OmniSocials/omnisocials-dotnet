@@ -173,7 +173,7 @@ await client.Posts.CreateAsync(new PostCreateParams
 
 On update, set `["thread_parts"] = null` to clear thread mode (revert to a single post); omit the key to leave the existing thread untouched. Dictionary entries with explicit nulls are sent on the wire, while null POCO properties are omitted.
 
-### List, get, update, publish, delete
+### List, get, update, publish, retry, delete
 
 ```csharp
 var listed = await client.Posts.ListAsync(new PostListParams { Status = "scheduled", Limit = 50 });
@@ -182,8 +182,11 @@ var first = listed!.Value.GetProperty("data")[0].GetProperty("id").GetString()!;
 await client.Posts.GetAsync(first);
 await client.Posts.UpdateAsync(first, new PostUpdateParams { ScheduledAt = "2026-08-02T10:00:00Z" });
 await client.Posts.PublishAsync(first); // publish a draft/scheduled post now
+await client.Posts.RetryAsync(first);   // retry only the failed platforms of a failed/warning post
 await client.Posts.DeleteAsync(first);  // resolves to null (204)
 ```
+
+`RetryAsync` re-publishes only the platforms that failed, on the same post; platforms that already succeeded are never posted again. It is asynchronous: a 200 means the retry is queued, so poll `GetAsync` for the outcome. Max 3 retries per platform.
 
 ### Recent platform posts
 

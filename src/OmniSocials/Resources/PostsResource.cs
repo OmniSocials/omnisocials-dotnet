@@ -60,4 +60,14 @@ public sealed class PostsResource
     /// <summary><c>POST /posts/:id/publish</c>: publish a draft or scheduled post now.</summary>
     public Task<JsonElement?> PublishAsync(string id, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/publish", null, cancellationToken);
+
+    /// <summary>
+    /// <c>POST /posts/:id/retry</c>: retry the failed platforms of a <c>failed</c>
+    /// or <c>warning</c> (partially failed) post, on the same post. Only the
+    /// platforms that failed are re-published; platforms that already succeeded
+    /// are never posted again. Asynchronous: a 200 means the retry is queued -
+    /// poll GetAsync for the outcome. Max 3 retries per platform.
+    /// </summary>
+    public Task<JsonElement?> RetryAsync(string id, CancellationToken cancellationToken = default)
+        => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/retry", null, cancellationToken);
 }
