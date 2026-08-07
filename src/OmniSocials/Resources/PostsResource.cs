@@ -41,11 +41,22 @@ public sealed class PostsResource
         return _client.GetAsync("/posts/recent-platform", query, cancellationToken);
     }
 
-    /// <summary><c>POST /posts/create</c>: create a draft or scheduled post.</summary>
+    /// <summary>
+    /// <c>POST /posts/create</c>: create a draft or scheduled post. When the
+    /// post targets X and its text (or any thread part) contains a URL, the
+    /// response includes a top-level <c>warnings</c> array (sibling of
+    /// <c>data</c>) with a <c>x_url_post_credits</c> entry carrying
+    /// <c>credits_required</c> and <c>credits_balance</c>: X's link-post fee
+    /// is passed through as prepaid credits, debited at publish time (from
+    /// 2026-08-14). Credits are managed in the dashboard, not the API.
+    /// </summary>
     public Task<JsonElement?> CreateAsync(PostCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/posts/create", parameters, cancellationToken);
 
-    /// <summary><c>POST /posts/create-and-publish</c>: create a post and publish it immediately.</summary>
+    /// <summary>
+    /// <c>POST /posts/create-and-publish</c>: create a post and publish it immediately.
+    /// See <see cref="CreateAsync"/> for the <c>warnings</c> array on X link posts.
+    /// </summary>
     public Task<JsonElement?> CreateAndPublishAsync(PostCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/posts/create-and-publish", parameters, cancellationToken);
 

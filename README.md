@@ -61,7 +61,7 @@ The API allows **100 requests per minute** per API key. When you exceed it, the 
 
 ## Return values
 
-Methods return `Task<JsonElement?>` with the parsed response body as-is: single items come back as `{ "data": {...} }`, lists as `{ "data": [...], "pagination": {...} }`, and some responses carry extra sibling keys (media uploads include `compatibility`, PDF uploads include `slides` and `media_ids`). Endpoints that respond `204 No Content` (deletes) resolve to `null`.
+Methods return `Task<JsonElement?>` with the parsed response body as-is: single items come back as `{ "data": {...} }`, lists as `{ "data": [...], "pagination": {...} }`, and some responses carry extra sibling keys (media uploads include `compatibility`, PDF uploads include `slides` and `media_ids`, post creates targeting X with a URL in the text include `warnings`). Endpoints that respond `204 No Content` (deletes) resolve to `null`.
 
 ```csharp
 var response = await client.Posts.ListAsync();
@@ -172,6 +172,30 @@ await client.Posts.CreateAsync(new PostCreateParams
 ```
 
 On update, set `["thread_parts"] = null` to clear thread mode (revert to a single post); omit the key to leave the existing thread untouched. Dictionary entries with explicit nulls are sent on the wire, while null POCO properties are omitted.
+
+### X link posts use credits
+
+X bills API posts whose text contains a URL at a premium, and OmniSocials passes that fee through as prepaid credits (20 credits per URL-containing tweet; threads billed per part with a link). When a create targets X and the text contains a URL, the response carries a top-level `warnings` array (a sibling of `data`):
+
+```csharp
+var res = await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Read the full story: https://example.com/post",
+    Channels = new[] { "x" },
+});
+if (res!.Value.TryGetProperty("warnings", out var warnings))
+{
+    foreach (var warning in warnings.EnumerateArray())
+    {
+        if (warning.GetProperty("code").GetString() == "x_url_post_credits")
+        {
+            Console.WriteLine(warning.GetProperty("credits_required").GetInt32());
+        }
+    }
+}
+```
+
+From `enforce_from` (2026-08-14) the balance is checked at publish time, but credits are only deducted after the post successfully publishes (a failed publish is never charged). If the balance can't cover it, only the X target fails (other platforms publish normally); top up in the dashboard under Settings -> Organisation -> Billing -> Credits, then call `Posts.RetryAsync`. Posts without links, analytics, and media on X stay free. There is no API endpoint for credits — they are managed in the dashboard.
 
 ### List, get, update, publish, retry, delete
 
