@@ -62,7 +62,7 @@ public sealed class InboxLastMessage
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";
 
-    /// <summary>"inbound" (from the participant) or "outbound" (from you).</summary>
+    /// <summary>"incoming" (from the participant) or "outgoing" (from you).</summary>
     [JsonPropertyName("direction")]
     public string Direction { get; set; } = "";
 
@@ -82,7 +82,7 @@ public sealed class InboxConversation
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "x".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
@@ -113,7 +113,7 @@ public sealed class InboxMessage
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "x".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
@@ -121,7 +121,7 @@ public sealed class InboxMessage
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
 
-    /// <summary>"inbound" (from the sender) or "outbound" (from you).</summary>
+    /// <summary>"incoming" (from the sender) or "outgoing" (from you).</summary>
     [JsonPropertyName("direction")]
     public string Direction { get; set; } = "";
 

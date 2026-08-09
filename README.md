@@ -197,6 +197,27 @@ if (res!.Value.TryGetProperty("warnings", out var warnings))
 
 From `enforce_from` (2026-08-14) the balance is checked at publish time, but credits are only deducted after the post successfully publishes (a failed publish is never charged). If the balance can't cover it, only the X target fails (other platforms publish normally); top up in the dashboard under Settings -> Organisation -> Billing -> Credits, then call `Posts.RetryAsync`. Posts without links, analytics, and media on X stay free. There is no API endpoint for credits — they are managed in the dashboard.
 
+Separately, scheduling an X link post reserves its credit cost up front: `Posts.CreateAsync`, `UpdateAsync`, and `PublishAsync` now refuse before the request is even accepted if reserving that post's cost would push the company's total reserved credits past its balance. That throws a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with `Code` `"x_credits_insufficient"` and `Body` carrying `error.details.credits_required` / `credits_balance` / `credits_reserved`:
+
+```csharp
+try
+{
+    await client.Posts.CreateAsync(new PostCreateParams
+    {
+        Content = "Read the full story: https://example.com/post",
+        Channels = new[] { "x" },
+        ScheduledAt = "2026-08-20T09:00:00Z",
+    });
+}
+catch (ApiException ex) when (ex.Status == 402 && ex.Code == "x_credits_insufficient")
+{
+    var details = ex.Body!.Value.GetProperty("error").GetProperty("details");
+    Console.WriteLine($"Need {details.GetProperty("credits_required")}, have {details.GetProperty("credits_balance")}");
+}
+```
+
+Drafts are never gated, and posts scheduled to publish before 2026-08-14 are never gated. This is separate from the `x_url_post_credits` warning above (fires at create time, non-blocking) and from the publish-time-only-the-X-target-fails behavior described above.
+
 ### List, get, update, publish, retry, delete
 
 ```csharp
@@ -472,6 +493,23 @@ await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
 });
 ```
 
+X DM replies cost 2 prepaid credits per send, debited from the company balance before the send and auto-refunded if the send fails. `ReplyAsync` can throw a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with one of two codes: `"insufficient_credits"` (the balance can't cover the 2 credits) or `"x_inbox_suspended"` (the workspace's X inbox auto-suspended when the balance hit zero - top up and re-enable it in the dashboard to resume; DMs that arrive while suspended are not recovered):
+
+```csharp
+try
+{
+    await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams { Text = "On it!" });
+}
+catch (ApiException ex) when (ex.Status == 402 && ex.Code == "x_inbox_suspended")
+{
+    Console.WriteLine("X inbox is suspended - top up credits and re-enable it in the dashboard.");
+}
+catch (ApiException ex) when (ex.Status == 402 && ex.Code == "insufficient_credits")
+{
+    Console.WriteLine("Not enough credits for this reply.");
+}
+```
+
 Like every resource, these methods return the raw `JsonElement?`. Optional typed
 models mirror the payloads if you prefer strong typing:
 
@@ -571,6 +609,7 @@ All exceptions thrown by the SDK extend `OmniSocialsException`. Non-2xx API resp
 | `AuthenticationException` | 401 | `unauthorized`, `invalid_api_key` |
 | `PermissionDeniedException` | 403 | `forbidden`, `insufficient_scope` |
 | `NotFoundException` | 404 | `not_found` |
+| `ApiException` (no dedicated subclass) | 402 | `x_credits_insufficient`, `insufficient_credits`, `x_inbox_suspended` |
 | `RateLimitException` | 429 | `rate_limit_exceeded` (exposes `RetryAfter` seconds) |
 | `ServerException` | >= 500 | `internal_error` |
 | `ApiConnectionException` | n/a | network failure or timeout |

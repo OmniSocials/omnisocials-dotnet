@@ -5,7 +5,7 @@ namespace OmniSocials;
 /// <summary>Query parameters for <c>GET /inbox/conversations</c>.</summary>
 public sealed class InboxConversationListParams
 {
-    /// <summary>Filter by platform: "instagram", "facebook", or "linkedin".</summary>
+    /// <summary>Filter by platform: "instagram", "facebook", "linkedin", or "x".</summary>
     public string? Platform { get; set; }
 
     /// <summary>Filter by conversation kind: "dm", "comment", or "mention".</summary>

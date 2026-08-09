@@ -49,6 +49,20 @@ public sealed class PostsResource
     /// <c>credits_required</c> and <c>credits_balance</c>: X's link-post fee
     /// is passed through as prepaid credits, debited at publish time (from
     /// 2026-08-14). Credits are managed in the dashboard, not the API.
+    ///
+    /// Separately, scheduling an X link post - here, or via
+    /// <see cref="UpdateAsync"/> or <see cref="PublishAsync"/> - reserves that
+    /// post's credit cost up front: if reserving it would push the company's
+    /// total reserved credits past its balance, the call refuses before the
+    /// request is even accepted, throwing a 402 <see cref="ApiException"/>
+    /// (402 isn't one of the typed subclasses, so check <c>Status</c>/<c>Code</c>)
+    /// with <c>Code</c> <c>x_credits_insufficient</c> and <c>Body</c> carrying
+    /// <c>error.details</c> with <c>credits_required</c>, <c>credits_balance</c>,
+    /// and <c>credits_reserved</c>. Drafts are never gated, and posts scheduled
+    /// to publish before 2026-08-14 are never gated. This is distinct from the
+    /// <c>x_url_post_credits</c> warning above (create-time, non-blocking) and
+    /// from the publish-time-only-the-X-target-fails behavior once enforcement
+    /// starts.
     /// </summary>
     public Task<JsonElement?> CreateAsync(PostCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/posts/create", parameters, cancellationToken);

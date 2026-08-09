@@ -17,7 +17,7 @@ public sealed class InboxResource
     /// <summary>
     /// <c>GET /inbox/conversations</c>: list social inbox conversations (DMs,
     /// comments, mentions) across connected platforms, newest activity first.
-    /// Filter by <c>platform</c> ("instagram"/"facebook"/"linkedin"), <c>type</c>
+    /// Filter by <c>platform</c> ("instagram"/"facebook"/"linkedin"/"x"), <c>type</c>
     /// ("dm"/"comment"/"mention"), and <c>unread</c>. Uses cursor pagination:
     /// pass the previous response's <c>pagination.next_cursor</c> as
     /// <see cref="InboxConversationListParams.Cursor"/> to keep paging while
@@ -68,6 +68,15 @@ public sealed class InboxResource
     /// <see cref="InboxReplyParams.AttachmentUrl"/> +
     /// <see cref="InboxReplyParams.AttachmentType"/>. Returns the created outbound
     /// message. <paramref name="conversationId"/> is URL-encoded for you.
+    ///
+    /// X DM replies cost 2 prepaid credits per send, debited from the company
+    /// balance before the send and auto-refunded if the send fails. Two 402
+    /// <see cref="ApiException"/> codes can result (402 has no dedicated
+    /// subclass, so check <c>Status</c>/<c>Code</c>): <c>insufficient_credits</c>
+    /// (the balance can't cover the 2 credits) and <c>x_inbox_suspended</c>
+    /// (the workspace's X inbox auto-suspended when the balance hit zero - top
+    /// up and re-enable it in the dashboard to resume; DMs that arrive while
+    /// suspended are not recovered).
     /// </summary>
     public Task<JsonElement?> ReplyAsync(string conversationId, InboxReplyParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/inbox/conversations/{Uri.EscapeDataString(conversationId)}/reply", parameters, cancellationToken);
