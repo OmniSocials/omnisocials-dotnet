@@ -154,6 +154,15 @@ public class PostCreateParams
 
     [JsonPropertyName("google_business")]
     public Dictionary<string, object?>? GoogleBusiness { get; set; }
+
+    /// <summary>
+    /// Non-sponsored LinkedIn poll: <c>question</c> (max 140 chars), <c>options</c>
+    /// (2-4 entries, each max 30 chars), and <c>duration</c> ("ONE_DAY",
+    /// "THREE_DAYS", "SEVEN_DAYS", or "FOURTEEN_DAYS"). Mutually exclusive with
+    /// media and a link share on the same post.
+    /// </summary>
+    [JsonPropertyName("linkedin_poll")]
+    public Dictionary<string, object?>? LinkedinPoll { get; set; }
 }
 
 /// <summary>
@@ -229,6 +238,14 @@ public class PostUpdateParams
 
     [JsonPropertyName("google_business")]
     public Dictionary<string, object?>? GoogleBusiness { get; set; }
+
+    /// <summary>
+    /// Non-sponsored LinkedIn poll (see <see cref="PostCreateParams.LinkedinPoll"/>
+    /// for the shape). Pass an explicit <c>null</c> to clear the poll and revert
+    /// the post to normal; omit to leave it untouched.
+    /// </summary>
+    [JsonPropertyName("linkedin_poll")]
+    public Dictionary<string, object?>? LinkedinPoll { get; set; }
 }
 
 /// <summary>Query parameters for <c>GET /posts</c>.</summary>
