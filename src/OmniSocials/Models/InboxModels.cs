@@ -82,7 +82,7 @@ public sealed class InboxConversation
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "x".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "x".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
@@ -113,7 +113,7 @@ public sealed class InboxMessage
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "x".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "x".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
