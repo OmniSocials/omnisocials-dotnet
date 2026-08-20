@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
