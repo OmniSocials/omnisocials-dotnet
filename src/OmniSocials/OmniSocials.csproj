@@ -13,7 +13,7 @@
 
   <PropertyGroup>
     <PackageId>OmniSocials</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>OmniSocials</Authors>
     <Company>OmniSocials</Company>
     <Description>Official .NET client for the OmniSocials API. Schedule and publish posts to Instagram, Facebook, LinkedIn, YouTube, TikTok, X, Pinterest, Bluesky, Threads, Mastodon, and Google Business from one API. Includes automatic retries, rich error types, and webhook signature verification.</Description>

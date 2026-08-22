@@ -251,7 +251,7 @@ public class PostUpdateParams
 /// <summary>Query parameters for <c>GET /posts</c>.</summary>
 public sealed class PostListParams
 {
-    /// <summary>Filter by status, e.g. "draft", "scheduled", "published", "failed".</summary>
+    /// <summary>Filter by status: "draft", "in_approval", "scheduled", "posting", "published", "failed", "warning". "in_approval" = waiting for a reviewer in an approval workflow.</summary>
     public string? Status { get; set; }
 
     /// <summary>Max items to return (default 20, max 100).</summary>
