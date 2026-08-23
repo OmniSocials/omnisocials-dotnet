@@ -148,9 +148,9 @@ await client.Posts.CreateAsync(new PostCreateParams
 });
 ```
 
-### X thread
+### Chained threads (X, Bluesky, Mastodon, Threads)
 
-Provide 2 to 25 `thread_parts` to publish a chained thread instead of a single tweet. Each part is capped at 280 characters and can carry its own media (`media_ids` or `media_urls`). The same `thread_parts` shape works for `Bluesky` (300 chars per part) and `Mastodon` (500 chars per part).
+Provide 2 to 25 `thread_parts` to publish a chained thread instead of a single tweet. Each part is capped at 280 characters and can carry its own media (`media_ids` or `media_urls`). The same `thread_parts` shape works for `Bluesky` (300 chars per part), `Mastodon` (500 chars per part) and `Threads` (Meta Threads: 2 to 25 parts, 500 characters per part, up to 10 media per part; parts after the first publish as replies to the previous part, and the Threads caption is taken from part 1).
 
 ```csharp
 await client.Posts.CreateAsync(new PostCreateParams
@@ -171,7 +171,29 @@ await client.Posts.CreateAsync(new PostCreateParams
 });
 ```
 
-On update, set `["thread_parts"] = null` to clear thread mode (revert to a single post); omit the key to leave the existing thread untouched. Dictionary entries with explicit nulls are sent on the wire, while null POCO properties are omitted.
+```csharp
+// Meta Threads chain with a carousel on the first part
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Behind the scenes of our summer shoot",
+    Channels = new[] { "threads" },
+    Threads = new Dictionary<string, object?>
+    {
+        ["thread_parts"] = new[]
+        {
+            new Dictionary<string, object?>
+            {
+                ["text"] = "Behind the scenes of our summer shoot. A few highlights:",
+                ["media_urls"] = new[] { "https://example.com/shoot-1.jpg", "https://example.com/shoot-2.jpg" },
+            },
+            new Dictionary<string, object?> { ["text"] = "Day one: scouting locations at sunrise." },
+            new Dictionary<string, object?> { ["text"] = "Day two: the full crew, 14 hours, zero regrets." },
+        },
+    },
+});
+```
+
+On update, set `["thread_parts"] = null` to clear thread mode (revert to a single post); omit the key to leave the existing thread untouched. Dictionary entries with explicit nulls are sent on the wire, while null POCO properties are omitted. The same applies to `Bluesky`, `Mastodon` and `Threads`.
 
 ### X link posts use credits
 

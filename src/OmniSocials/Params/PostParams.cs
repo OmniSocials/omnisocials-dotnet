@@ -152,6 +152,14 @@ public class PostCreateParams
     [JsonPropertyName("mastodon")]
     public Dictionary<string, object?>? Mastodon { get; set; }
 
+    /// <summary>
+    /// Threads (Meta) options: <c>thread_parts</c> (2-25 parts, 500 chars per
+    /// part, up to 10 media per part; parts after the first publish as replies
+    /// to the previous part, and the Threads caption is taken from part 1).
+    /// </summary>
+    [JsonPropertyName("threads")]
+    public Dictionary<string, object?>? Threads { get; set; }
+
     [JsonPropertyName("google_business")]
     public Dictionary<string, object?>? GoogleBusiness { get; set; }
 
@@ -235,6 +243,10 @@ public class PostUpdateParams
     /// <summary><c>["thread_parts"] = null</c> clears thread mode; omit the key to leave it untouched.</summary>
     [JsonPropertyName("mastodon")]
     public Dictionary<string, object?>? Mastodon { get; set; }
+
+    /// <summary><c>["thread_parts"] = null</c> clears thread mode; omit the key to leave it untouched.</summary>
+    [JsonPropertyName("threads")]
+    public Dictionary<string, object?>? Threads { get; set; }
 
     [JsonPropertyName("google_business")]
     public Dictionary<string, object?>? GoogleBusiness { get; set; }

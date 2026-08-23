@@ -111,10 +111,40 @@ public class SerializationTests
         await client.Posts.UpdateAsync("1", new PostUpdateParams
         {
             X = new Dictionary<string, object?> { ["thread_parts"] = null },
+            Threads = new Dictionary<string, object?> { ["thread_parts"] = null },
         });
 
         var body = Parse(handler.RequestBodies[0]!);
         Assert.Equal(JsonValueKind.Null, body.GetProperty("x").GetProperty("thread_parts").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("threads").GetProperty("thread_parts").ValueKind);
+    }
+
+    [Fact]
+    public async Task Threads_thread_parts_serialize_on_create()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.Created, "{\"data\":{\"id\":\"1\"}}");
+        using var client = CreateClient(handler);
+
+        await client.Posts.CreateAsync(new PostCreateParams
+        {
+            Content = "hello",
+            Channels = new[] { "threads" },
+            Threads = new Dictionary<string, object?>
+            {
+                ["thread_parts"] = new[]
+                {
+                    new Dictionary<string, object?> { ["text"] = "part one", ["media_urls"] = new[] { "https://example.com/a.jpg" } },
+                    new Dictionary<string, object?> { ["text"] = "part two" },
+                },
+            },
+        });
+
+        var body = Parse(handler.RequestBodies[0]!);
+        var threads = body.GetProperty("threads");
+        Assert.Equal(2, threads.GetProperty("thread_parts").GetArrayLength());
+        Assert.Equal("https://example.com/a.jpg", threads.GetProperty("thread_parts")[0].GetProperty("media_urls")[0].GetString());
+        Assert.Equal("part two", threads.GetProperty("thread_parts")[1].GetProperty("text").GetString());
     }
 
     [Fact]
