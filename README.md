@@ -482,11 +482,11 @@ if (check!.Value.GetProperty("valid").GetBoolean())
 ## Inbox (social inbox)
 
 Conversations (DMs, comments, mentions) across connected platforms (Instagram,
-Facebook, LinkedIn, TikTok comments, and X DMs), their message threads, and
-replies. TikTok replies are comments only and capped at 150 characters. The
-list endpoints use **cursor pagination**: page on by passing the previous
-response's `pagination.next_cursor` back as `Cursor` while
-`pagination.has_more` is true.
+Facebook, LinkedIn, TikTok comments, YouTube comments, and X DMs), their
+message threads, and replies. TikTok and YouTube replies are comments only;
+TikTok replies are capped at 150 characters. The list endpoints use **cursor
+pagination**: page on by passing the previous response's
+`pagination.next_cursor` back as `Cursor` while `pagination.has_more` is true.
 
 ```csharp
 var page = await client.Inbox.ListConversationsAsync(new InboxConversationListParams

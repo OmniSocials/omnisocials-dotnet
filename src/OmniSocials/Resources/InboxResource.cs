@@ -17,7 +17,7 @@ public sealed class InboxResource
     /// <summary>
     /// <c>GET /inbox/conversations</c>: list social inbox conversations (DMs,
     /// comments, mentions) across connected platforms, newest activity first.
-    /// Filter by <c>platform</c> ("instagram"/"facebook"/"linkedin"/"tiktok"/"x"),
+    /// Filter by <c>platform</c> ("instagram"/"facebook"/"linkedin"/"tiktok"/"youtube"/"x"),
     /// <c>type</c> ("dm"/"comment"/"mention"), and <c>unread</c>. Uses cursor
     /// pagination: pass the previous response's <c>pagination.next_cursor</c> as
     /// <see cref="InboxConversationListParams.Cursor"/> to keep paging while
