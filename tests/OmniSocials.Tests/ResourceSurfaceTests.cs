@@ -5,7 +5,7 @@ using Xunit;
 namespace OmniSocials.Tests;
 
 /// <summary>
-/// Guards the full v1 endpoint surface (44 endpoints + GET /health): every
+/// Guards the full v1 endpoint surface (45 endpoints + GET /health): every
 /// resource method must exist, return Task&lt;JsonElement?&gt;, and accept a
 /// CancellationToken.
 /// </summary>
@@ -22,7 +22,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
-    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync")]
+    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
     {
         foreach (var name in expectedMethods.Split(','))

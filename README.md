@@ -195,6 +195,8 @@ await client.Posts.CreateAsync(new PostCreateParams
 
 On update, set `["thread_parts"] = null` to clear thread mode (revert to a single post); omit the key to leave the existing thread untouched. Dictionary entries with explicit nulls are sent on the wire, while null POCO properties are omitted. The same applies to `Bluesky`, `Mastodon` and `Threads`.
 
+The `Threads` options also accept `["location_id"]`: a Threads location id from `Locations.SearchAsync` with platform `"threads"` (see [Locations](#locations-instagram-and-threads-place-tagging)). On a multi-part thread the tag is applied to part 1, and on update `["location_id"] = null` clears the tag. Threads location tagging is currently rolling out; until Meta approves the permissions it is disabled on production and calls return a clear error.
+
 ### X link posts use credits
 
 X bills API posts whose text contains a URL at a premium, and OmniSocials passes that fee through as prepaid credits (20 credits per URL-containing tweet; threads billed per part with a link). When a create targets X and the text contains a URL, the response carries a top-level `warnings` array (a sibling of `data`):
@@ -458,7 +460,7 @@ var best = await client.Analytics.BestTimesAsync(new BestTimesParams
 });
 ```
 
-## Locations (Instagram place tagging)
+## Locations (Instagram and Threads place tagging)
 
 ```csharp
 var results = await client.Locations.SearchAsync("Griffith Observatory");
@@ -479,13 +481,48 @@ if (check!.Value.GetProperty("valid").GetBoolean())
 }
 ```
 
+Pass a `LocationSearchParams` with `Platform = "threads"` to search Meta's Threads location catalog instead of Facebook Places (the two sources use different ids). With `Platform = "threads"` you can also search around a point with `Latitude` + `Longitude` instead of `Q` (pass either `Q` or the coordinate pair). The Threads response is `{ "locations": [...] }` (each entry: `id`, plus nullable `name`, `address`, `city`, `country`, `latitude`, `longitude`) or `{ "error": { "code", "message" } }` with code `not_available`, `threads_not_connected`, `threads_reauth_required` (reconnect Threads), or `platform_error`. Use a result's `id` as `["location_id"]` inside the `Threads` post options, not as the top-level `LocationId`. Threads location tagging is currently rolling out; until Meta approves the permissions it is disabled on production and calls return a clear error.
+
+```csharp
+var threadsPlaces = await client.Locations.SearchAsync(new LocationSearchParams
+{
+    Q = "Griffith Observatory",
+    Platform = "threads",
+});
+// Or search around a point instead of by text:
+var nearby = await client.Locations.SearchAsync(new LocationSearchParams
+{
+    Platform = "threads",
+    Latitude = 34.1184,
+    Longitude = -118.3004,
+});
+var threadsLocationId = threadsPlaces!.Value.GetProperty("locations")[0].GetProperty("id").GetString()!;
+
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Golden hour at the observatory",
+    Channels = new[] { "threads" },
+    MediaUrls = new[] { "https://example.com/observatory.jpg" },
+    Threads = new Dictionary<string, object?> { ["location_id"] = threadsLocationId },
+    ScheduledAt = "2026-08-01T18:30:00Z",
+});
+```
+
 ## Inbox (social inbox)
 
 Conversations (DMs, comments, mentions) across connected platforms (Instagram,
-Facebook, LinkedIn, TikTok comments, YouTube comments, and X DMs), their
-message threads, and replies. TikTok and YouTube replies are comments only;
-TikTok replies are capped at 150 characters. The list endpoints use **cursor
-pagination**: page on by passing the previous response's
+Facebook, LinkedIn, TikTok comments, YouTube comments, X DMs, and Threads),
+their message threads, and replies. TikTok and YouTube replies are comments
+only; TikTok replies are capped at 150 characters. Threads conversations are
+`type` `"comment"` (replies people leave on your Threads posts; conversation
+ids look like `threads_comment_<rootPostId>`) and `"mention"`
+(`threads_mention_<postId>`); there are no Threads DMs, and a reply publishes
+as a native Threads reply. The Threads inbox is currently rolling out; until
+Meta approves the permissions it is disabled on production and calls return a
+clear error, and it needs a Threads connection with the reply permission (a
+connection without it throws a 401 `AuthenticationException` with code
+`reauth_required`; reconnect Threads to fix it). The list endpoints use
+**cursor pagination**: page on by passing the previous response's
 `pagination.next_cursor` back as `Cursor` while `pagination.has_more` is true.
 
 ```csharp
@@ -502,7 +539,8 @@ var conversationId = conversation.GetProperty("conversation_id").GetString()!;
 
 // Full thread for one conversation (newest first). The id is URL-encoded for
 // you, so pass it exactly as returned - LinkedIn ids contain ":" and "()".
-await client.Inbox.GetMessagesAsync(conversationId, new InboxMessageListParams { Limit = 20 });
+var messages = await client.Inbox.GetMessagesAsync(conversationId, new InboxMessageListParams { Limit = 20 });
+var messageId = messages!.Value.GetProperty("data")[0].GetProperty("id").GetString()!;
 
 // Mark every message in the conversation as read.
 var read = await client.Inbox.MarkReadAsync(conversationId);
@@ -515,6 +553,13 @@ await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
     AttachmentUrl = "https://example.com/reply.jpg",
     AttachmentType = "image",
 });
+
+// Hide (or unhide) a reply someone left on one of your Threads posts, as the
+// post owner. Threads only for now; only incoming top-level replies can be
+// hidden (nested replies return 400 not_hideable), and the message keeps its
+// place in the conversation. Returns the message with `hidden` flipped.
+await client.Inbox.HideAsync(messageId);              // hide
+await client.Inbox.HideAsync(messageId, hide: false); // unhide
 ```
 
 X DM replies cost 2 prepaid credits per send, debited from the company balance before the send and auto-refunded if the send fails. `ReplyAsync` can throw a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with one of two codes: `"insufficient_credits"` (the balance can't cover the 2 credits) or `"x_inbox_suspended"` (the workspace's X inbox auto-suspended when the balance hit zero - top up and re-enable it in the dashboard to resume; DMs that arrive while suspended are not recovered):

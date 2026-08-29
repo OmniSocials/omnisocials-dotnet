@@ -111,12 +111,14 @@ public class SerializationTests
         await client.Posts.UpdateAsync("1", new PostUpdateParams
         {
             X = new Dictionary<string, object?> { ["thread_parts"] = null },
-            Threads = new Dictionary<string, object?> { ["thread_parts"] = null },
+            Threads = new Dictionary<string, object?> { ["thread_parts"] = null, ["location_id"] = null },
         });
 
         var body = Parse(handler.RequestBodies[0]!);
         Assert.Equal(JsonValueKind.Null, body.GetProperty("x").GetProperty("thread_parts").ValueKind);
         Assert.Equal(JsonValueKind.Null, body.GetProperty("threads").GetProperty("thread_parts").ValueKind);
+        // Explicit null location_id must survive too: it clears the Threads location tag.
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("threads").GetProperty("location_id").ValueKind);
     }
 
     [Fact]
@@ -137,6 +139,7 @@ public class SerializationTests
                     new Dictionary<string, object?> { ["text"] = "part one", ["media_urls"] = new[] { "https://example.com/a.jpg" } },
                     new Dictionary<string, object?> { ["text"] = "part two" },
                 },
+                ["location_id"] = "17843857450040591",
             },
         });
 
@@ -145,6 +148,47 @@ public class SerializationTests
         Assert.Equal(2, threads.GetProperty("thread_parts").GetArrayLength());
         Assert.Equal("https://example.com/a.jpg", threads.GetProperty("thread_parts")[0].GetProperty("media_urls")[0].GetString());
         Assert.Equal("part two", threads.GetProperty("thread_parts")[1].GetProperty("text").GetString());
+        Assert.Equal("17843857450040591", threads.GetProperty("location_id").GetString());
+    }
+
+    [Fact]
+    public async Task Inbox_hide_posts_the_hide_flag()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"123\",\"hidden\":true}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"123\",\"hidden\":false}}");
+        using var client = CreateClient(handler);
+
+        await client.Inbox.HideAsync("123"); // defaults to hide: true
+        await client.Inbox.HideAsync("123", hide: false);
+
+        Assert.Equal("https://api.test.local/v1/inbox/messages/123/hide",
+            handler.Requests[0].RequestUri!.OriginalString);
+        Assert.True(Parse(handler.RequestBodies[0]!).GetProperty("hide").GetBoolean());
+        Assert.False(Parse(handler.RequestBodies[1]!).GetProperty("hide").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Locations_search_overload_builds_platform_and_coordinate_queries()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"locations\":[]}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"locations\":[]}");
+        using var client = CreateClient(handler);
+
+        await client.Locations.SearchAsync(new LocationSearchParams { Q = "cafe", Platform = "threads" });
+        await client.Locations.SearchAsync(new LocationSearchParams
+        {
+            Platform = "threads",
+            Latitude = 52.37,
+            Longitude = -4.89,
+        });
+
+        Assert.Equal("https://api.test.local/v1/locations/search?q=cafe&platform=threads",
+            handler.Requests[0].RequestUri!.OriginalString);
+        // Coordinates must serialize with invariant-culture decimal points.
+        Assert.Equal("https://api.test.local/v1/locations/search?platform=threads&latitude=52.37&longitude=-4.89",
+            handler.Requests[1].RequestUri!.OriginalString);
     }
 
     [Fact]

@@ -82,11 +82,11 @@ public sealed class InboxConversation
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "youtube", "x".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "youtube", "x", "threads".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
-    /// <summary>Conversation kind: "dm", "comment", or "mention".</summary>
+    /// <summary>Conversation kind: "dm", "comment", or "mention" (Threads has "comment" and "mention" only).</summary>
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
 
@@ -113,11 +113,11 @@ public sealed class InboxMessage
     [JsonPropertyName("conversation_id")]
     public string ConversationId { get; set; } = "";
 
-    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "youtube", "x".</summary>
+    /// <summary>Platform identifier, e.g. "instagram", "facebook", "linkedin", "tiktok", "youtube", "x", "threads".</summary>
     [JsonPropertyName("platform")]
     public string Platform { get; set; } = "";
 
-    /// <summary>Message kind: "dm", "comment", or "mention".</summary>
+    /// <summary>Message kind: "dm", "comment", or "mention" (Threads has "comment" and "mention" only).</summary>
     [JsonPropertyName("type")]
     public string Type { get; set; } = "";
 
@@ -144,6 +144,18 @@ public sealed class InboxMessage
     /// <summary>Parent comment id when this is a threaded comment reply.</summary>
     [JsonPropertyName("parent_comment_id")]
     public string? ParentCommentId { get; set; }
+
+    /// <summary>
+    /// Threads replies only: true when the reply is hidden on Threads (see
+    /// <see cref="InboxResource.HideAsync"/>). Null for every other
+    /// platform/message.
+    /// </summary>
+    [JsonPropertyName("hidden")]
+    public bool? Hidden { get; set; }
+
+    /// <summary>Link to the reply or mentioning post on the platform, when known.</summary>
+    [JsonPropertyName("permalink")]
+    public string? Permalink { get; set; }
 
     [JsonPropertyName("sender")]
     public InboxParticipant Sender { get; set; } = new();
@@ -192,4 +204,14 @@ public sealed class InboxReplyResponse
 
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+}
+
+/// <summary>
+/// Single-item envelope for <c>POST /inbox/messages/:id/hide</c>: the updated
+/// message with <see cref="InboxMessage.Hidden"/> flipped.
+/// </summary>
+public sealed class InboxHideResponse
+{
+    [JsonPropertyName("data")]
+    public InboxMessage Data { get; set; } = new();
 }

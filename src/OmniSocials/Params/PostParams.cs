@@ -155,7 +155,15 @@ public class PostCreateParams
     /// <summary>
     /// Threads (Meta) options: <c>thread_parts</c> (2-25 parts, 500 chars per
     /// part, up to 10 media per part; parts after the first publish as replies
-    /// to the previous part, and the Threads caption is taken from part 1).
+    /// to the previous part, and the Threads caption is taken from part 1) and
+    /// <c>location_id</c> (a Threads location id from
+    /// <c>Locations.SearchAsync</c> with platform "threads"; on a multi-part
+    /// thread the tag is applied to part 1). Alternatively pass
+    /// <c>location</c>: an object <c>{ id, name?, address?, city?, country? }</c>
+    /// to store display fields along with the id (<c>location_id</c> wins when
+    /// both are given). Threads location tagging is currently rolling out;
+    /// until Meta approves the permissions it is disabled on production and
+    /// calls return a clear error.
     /// </summary>
     [JsonPropertyName("threads")]
     public Dictionary<string, object?>? Threads { get; set; }
@@ -244,7 +252,11 @@ public class PostUpdateParams
     [JsonPropertyName("mastodon")]
     public Dictionary<string, object?>? Mastodon { get; set; }
 
-    /// <summary><c>["thread_parts"] = null</c> clears thread mode; omit the key to leave it untouched.</summary>
+    /// <summary>
+    /// <c>["thread_parts"] = null</c> clears thread mode and
+    /// <c>["location_id"] = null</c> (or <c>["location"] = null</c>) clears the
+    /// Threads location tag; omit a key to leave it untouched.
+    /// </summary>
     [JsonPropertyName("threads")]
     public Dictionary<string, object?>? Threads { get; set; }
 

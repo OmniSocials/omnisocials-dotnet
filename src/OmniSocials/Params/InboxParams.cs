@@ -5,10 +5,14 @@ namespace OmniSocials;
 /// <summary>Query parameters for <c>GET /inbox/conversations</c>.</summary>
 public sealed class InboxConversationListParams
 {
-    /// <summary>Filter by platform: "instagram", "facebook", "linkedin", "tiktok", "youtube", or "x".</summary>
+    /// <summary>
+    /// Filter by platform: "instagram", "facebook", "linkedin", "tiktok",
+    /// "youtube", "x", or "threads". The Threads inbox is currently rolling
+    /// out; until Meta approves the permissions it is disabled on production.
+    /// </summary>
     public string? Platform { get; set; }
 
-    /// <summary>Filter by conversation kind: "dm", "comment", or "mention".</summary>
+    /// <summary>Filter by conversation kind: "dm", "comment", or "mention". Threads has "comment" and "mention" only (no DMs).</summary>
     public string? Type { get; set; }
 
     /// <summary>Only return conversations that have unread messages.</summary>

@@ -17,9 +17,17 @@ public sealed class InboxResource
     /// <summary>
     /// <c>GET /inbox/conversations</c>: list social inbox conversations (DMs,
     /// comments, mentions) across connected platforms, newest activity first.
-    /// Filter by <c>platform</c> ("instagram"/"facebook"/"linkedin"/"tiktok"/"youtube"/"x"),
-    /// <c>type</c> ("dm"/"comment"/"mention"), and <c>unread</c>. Uses cursor
-    /// pagination: pass the previous response's <c>pagination.next_cursor</c> as
+    /// Filter by <c>platform</c>
+    /// ("instagram"/"facebook"/"linkedin"/"tiktok"/"youtube"/"x"/"threads"),
+    /// <c>type</c> ("dm"/"comment"/"mention"), and <c>unread</c>. Threads
+    /// conversations are <c>type</c> "comment" (replies people leave on your
+    /// Threads posts; conversation ids look like
+    /// <c>threads_comment_&lt;rootPostId&gt;</c>) and "mention"
+    /// (<c>threads_mention_&lt;postId&gt;</c>); there are no Threads DMs. The
+    /// Threads inbox is currently rolling out: until Meta approves the
+    /// permissions it is disabled on production, and it needs a Threads
+    /// connection with the reply permission. Uses cursor pagination: pass the
+    /// previous response's <c>pagination.next_cursor</c> as
     /// <see cref="InboxConversationListParams.Cursor"/> to keep paging while
     /// <c>pagination.has_more</c> is true.
     /// </summary>
@@ -69,6 +77,13 @@ public sealed class InboxResource
     /// <see cref="InboxReplyParams.AttachmentType"/>. Returns the created outbound
     /// message. <paramref name="conversationId"/> is URL-encoded for you.
     ///
+    /// On a Threads conversation the reply publishes as a native Threads reply.
+    /// The Threads inbox is currently rolling out: until Meta approves the
+    /// permissions it is disabled on production, and it needs a Threads
+    /// connection with the reply permission. When the Threads connection lacks
+    /// that permission this throws a 401 <see cref="AuthenticationException"/>
+    /// with code <c>reauth_required</c> (reconnect Threads to fix it).
+    ///
     /// X DM replies cost 2 prepaid credits per send, debited from the company
     /// balance before the send and auto-refunded if the send fails. Two 402
     /// <see cref="ApiException"/> codes can result (402 has no dedicated
@@ -80,4 +95,24 @@ public sealed class InboxResource
     /// </summary>
     public Task<JsonElement?> ReplyAsync(string conversationId, InboxReplyParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/inbox/conversations/{Uri.EscapeDataString(conversationId)}/reply", parameters, cancellationToken);
+
+    /// <summary>
+    /// <c>POST /inbox/messages/:id/hide</c>: hide (<paramref name="hide"/> true,
+    /// the default) or unhide (false) a reply someone left on one of your
+    /// Threads posts, as the post owner (scope <c>inbox:write</c>). Threads only
+    /// for now, and only incoming top-level replies can be hidden (Threads does
+    /// not allow hiding nested replies); the message keeps its place in the
+    /// conversation. Returns <c>{ "data": &lt;message&gt; }</c> with
+    /// <c>hidden</c> flipped. Errors: 400 <c>unsupported_platform</c> (not an
+    /// incoming Threads reply, or the Threads inbox is not available yet), 400
+    /// <c>not_hideable</c> (nested reply or Threads refused), 401
+    /// <c>reauth_required</c> (the connection lacks the reply permission), 404
+    /// <c>not_found</c> (message not in this workspace) or
+    /// <c>account_not_connected</c> (no Threads account). The Threads inbox is
+    /// currently rolling out: until Meta approves the permissions it is
+    /// disabled on production and calls return a clear error.
+    /// <paramref name="messageId"/> is URL-encoded for you.
+    /// </summary>
+    public Task<JsonElement?> HideAsync(string messageId, bool hide = true, CancellationToken cancellationToken = default)
+        => _client.PostAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}/hide", new { hide }, cancellationToken);
 }
