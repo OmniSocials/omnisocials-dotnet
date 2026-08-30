@@ -137,7 +137,8 @@ public class PostCreateParams
     /// <summary>
     /// X (Twitter) options: <c>reply_settings</c>, <c>paid_partnership</c>,
     /// <c>made_with_ai</c>, and <c>thread_parts</c> (2-25 parts, each
-    /// <c>{ text, media_ids?, media_urls? }</c>, 280 chars per part).
+    /// <c>{ text, media_ids?, media_urls? }</c>, 280 chars per part —
+    /// 25,000 for Premium/Premium+ accounts).
     /// Thread-part media entries accept the same <c>{ url|id, alt }</c>
     /// objects as the top-level media fields.
     /// </summary>
