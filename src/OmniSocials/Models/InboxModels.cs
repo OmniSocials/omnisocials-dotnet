@@ -157,12 +157,32 @@ public sealed class InboxMessage
     [JsonPropertyName("permalink")]
     public string? Permalink { get; set; }
 
+    /// <summary>
+    /// Media on this message, when present. Incoming Instagram/Facebook DM
+    /// images, videos, voice messages, and story mentions are re-hosted on
+    /// our CDN so the URL stays valid indefinitely. Null when the message
+    /// has no media.
+    /// </summary>
+    [JsonPropertyName("attachment")]
+    public InboxAttachment? Attachment { get; set; }
+
     [JsonPropertyName("sender")]
     public InboxParticipant Sender { get; set; } = new();
 
     /// <summary>The related post for comment/mention messages; null for DMs.</summary>
     [JsonPropertyName("post")]
     public InboxPostRef? Post { get; set; }
+}
+
+/// <summary>Media sent with an inbox message.</summary>
+public sealed class InboxAttachment
+{
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = "";
+
+    /// <summary>"image", "video", "audio", or "file".</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
 }
 
 /// <summary>Envelope for <c>GET /inbox/conversations</c> (cursor-paginated).</summary>

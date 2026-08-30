@@ -40,11 +40,11 @@ public sealed class InboxMessageListParams
 /// </summary>
 public sealed class InboxReplyParams
 {
-    /// <summary>Reply text (required).</summary>
+    /// <summary>Reply text. Optional when <see cref="AttachmentUrl"/> is set — an attachment-only reply is allowed.</summary>
     [JsonPropertyName("text")]
     public string Text { get; set; } = "";
 
-    /// <summary>Public URL of a single media asset to attach.</summary>
+    /// <summary>Public URL of a single media asset to attach (Facebook and Instagram DMs only; other platforms are text-only).</summary>
     [JsonPropertyName("attachment_url")]
     public string? AttachmentUrl { get; set; }
 

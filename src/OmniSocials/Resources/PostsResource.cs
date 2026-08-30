@@ -95,4 +95,30 @@ public sealed class PostsResource
     /// </summary>
     public Task<JsonElement?> RetryAsync(string id, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/retry", null, cancellationToken);
+
+    /// <summary>
+    /// <c>POST /posts/:id/approve</c>: approve the current step of a post's
+    /// approval workflow, on behalf of the user who owns this API key. That
+    /// user must be a listed approver for the workflow's CURRENT step - steps
+    /// approve in order, so an approver on a later step gets a 403
+    /// <c>forbidden</c> error until earlier steps clear. Only works on a post
+    /// with <c>approval_status: "pending"</c>. If this is the last step, the
+    /// post finalizes immediately (<c>scheduled</c> or <c>posting</c>);
+    /// otherwise it stays <c>in_approval</c> and the next step's approvers
+    /// are notified.
+    /// </summary>
+    public Task<JsonElement?> ApproveAsync(string id, CancellationToken cancellationToken = default)
+        => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/approve", null, cancellationToken);
+
+    /// <summary>
+    /// <c>POST /posts/:id/reject</c>: reject a post's approval workflow, on
+    /// behalf of the user who owns this API key. Same approver requirement as
+    /// <see cref="ApproveAsync"/>. Unlike approval, a rejection stops the
+    /// WHOLE workflow immediately (not just the current step) - the post's
+    /// status becomes <c>rejected</c>. <paramref name="comment"/> is optional
+    /// and, when given, is shown to the requester and other approvers in the
+    /// post's review thread.
+    /// </summary>
+    public Task<JsonElement?> RejectAsync(string id, string? comment = null, CancellationToken cancellationToken = default)
+        => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/reject", new { comment }, cancellationToken);
 }
