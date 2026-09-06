@@ -110,6 +110,18 @@ public class PostCreateParams
     [JsonPropertyName("hashtag_platforms")]
     public IList<string>? HashtagPlatforms { get; set; }
 
+    /// <summary>
+    /// Route the post through a saved approval workflow (id from
+    /// <see cref="ApprovalWorkflowsResource.ListAsync"/>). The post is created as
+    /// <c>in_approval</c> (<c>approval_status: "pending"</c>) instead of <c>scheduled</c>;
+    /// its approvers are notified and it publishes at <see cref="ScheduledAt"/> once the
+    /// last step approves (dashboard, or <c>Posts.ApproveAsync</c>). Requires
+    /// <see cref="ScheduledAt"/>; not allowed with <c>publish_now</c>. Errors:
+    /// <c>404 workflow_not_found</c>, <c>400 validation_error</c>.
+    /// </summary>
+    [JsonPropertyName("approval_workflow_id")]
+    public string? ApprovalWorkflowId { get; set; }
+
     // Platform-specific option blocks. Dictionary values serialize as-is,
     // including explicit nulls (unlike null POCO properties, which are omitted).
 

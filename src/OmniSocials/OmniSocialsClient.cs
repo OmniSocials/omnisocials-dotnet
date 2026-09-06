@@ -50,6 +50,7 @@ public sealed class OmniSocialsClient : IDisposable
     public MediaResource Media { get; }
     public FoldersResource Folders { get; }
     public HashtagSetsResource HashtagSets { get; }
+    public ApprovalWorkflowsResource ApprovalWorkflows { get; }
     public AccountsResource Accounts { get; }
     public AnalyticsResource Analytics { get; }
     public AudioResource Audio { get; }
@@ -93,6 +94,7 @@ public sealed class OmniSocialsClient : IDisposable
         Media = new MediaResource(this);
         Folders = new FoldersResource(this);
         HashtagSets = new HashtagSetsResource(this);
+        ApprovalWorkflows = new ApprovalWorkflowsResource(this);
         Accounts = new AccountsResource(this);
         Analytics = new AnalyticsResource(this);
         Audio = new AudioResource(this);
