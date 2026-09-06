@@ -563,12 +563,36 @@ await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
     AttachmentType = "image",
 });
 
-// Hide (or unhide) a reply someone left on one of your Threads posts, as the
-// post owner. Threads only for now; only incoming top-level replies can be
-// hidden (nested replies return 400 not_hideable), and the message keeps its
-// place in the conversation. Returns the message with `hidden` flipped.
+// Hide (or unhide) a comment someone left on one of your posts, as the post
+// owner: Facebook, Instagram, TikTok, YouTube and Threads comments (Threads:
+// incoming top-level replies only). The message keeps its place in the
+// conversation and comes back with `hidden` flipped.
 await client.Inbox.HideAsync(messageId);              // hide
 await client.Inbox.HideAsync(messageId, hide: false); // unhide
+
+// Delete a comment outright (Facebook, Instagram, TikTok; YouTube: hide
+// instead). Replies under it go with it; their ids come back as
+// removed_reply_ids.
+await client.Inbox.DeleteMessageAsync(messageId);
+```
+
+**Work queue: what needs an answer.** `NextAsync` hands out the next conversation that still needs a reply (the customer's latest DM with no reply after it, or an unreplied comment/mention that is not hidden), with the whole thread and the post it belongs to (`post.url`, `post.media_type`), so a reply can be drafted from one call. Replies typed in the native apps count as answers. Only unread items are served by default, so `MarkReadAsync` is the durable way to skip one; `Exclude` skips conversation ids for the current session only. Set `IncludeNext` on `ReplyAsync` to get the following item in the same response. `InboxConversationListParams { Unanswered = true }` gives the same set as a plain list. Typed models: `InboxNextResponse` / `InboxNextUnanswered`, `InboxDeleteMessageResponse`.
+
+```csharp
+var next = await client.Inbox.NextAsync(new InboxNextParams { Platform = "instagram" });
+var item = next!.Value.GetProperty("data");
+while (item.ValueKind != JsonValueKind.Null)
+{
+    var message = item.GetProperty("message");
+    Console.WriteLine($"{message.GetProperty("sender").GetProperty("username").GetString()}: {message.GetProperty("text").GetString()}");
+
+    var reply = await client.Inbox.ReplyAsync(message.GetProperty("conversation_id").GetString()!, new InboxReplyParams
+    {
+        Text = "Thanks! DM sent.",
+        IncludeNext = true,
+    });
+    item = reply!.Value.GetProperty("next"); // JSON null when nothing else is waiting; "remaining" sits beside it
+}
 ```
 
 X DM replies cost 2 prepaid credits per send, debited from the company balance before the send and auto-refunded if the send fails. `ReplyAsync` can throw a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with one of two codes: `"insufficient_credits"` (the balance can't cover the 2 credits) or `"x_inbox_suspended"` (the workspace's X inbox auto-suspended when the balance hit zero - top up and re-enable it in the dashboard to resume; DMs that arrive while suspended are not recovered):

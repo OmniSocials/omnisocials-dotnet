@@ -19,7 +19,9 @@ public sealed class InboxResource
     /// comments, mentions) across connected platforms, newest activity first.
     /// Filter by <c>platform</c>
     /// ("instagram"/"facebook"/"linkedin"/"tiktok"/"youtube"/"x"/"threads"),
-    /// <c>type</c> ("dm"/"comment"/"mention"), and <c>unread</c>. Threads
+    /// <c>type</c> ("dm"/"comment"/"mention"), <c>unread</c>, and
+    /// <c>unanswered</c> (only conversations that still need an answer; see
+    /// <see cref="InboxConversationListParams.Unanswered"/>). Threads
     /// conversations are <c>type</c> "comment" (replies people leave on your
     /// Threads posts; conversation ids look like
     /// <c>threads_comment_&lt;rootPostId&gt;</c>) and "mention"
@@ -38,6 +40,7 @@ public sealed class InboxResource
             new("platform", parameters?.Platform),
             new("type", parameters?.Type),
             new("unread", parameters?.Unread is bool unread ? (unread ? "true" : "false") : null),
+            new("unanswered", parameters?.Unanswered is bool unanswered ? (unanswered ? "true" : "false") : null),
             new("limit", parameters?.Limit?.ToString()),
             new("cursor", parameters?.Cursor),
         };
@@ -92,27 +95,116 @@ public sealed class InboxResource
     /// (the workspace's X inbox auto-suspended when the balance hit zero - top
     /// up and re-enable it in the dashboard to resume; DMs that arrive while
     /// suspended are not recovered).
+    ///
+    /// Set <see cref="InboxReplyParams.IncludeNext"/> to also get <c>next</c>
+    /// (the next conversation that needs an answer, the same object
+    /// <see cref="NextAsync"/> returns under <c>data</c>, using its default
+    /// queue order and filters; null when nothing is waiting) and
+    /// <c>remaining</c> in the response. Saves the extra call when working
+    /// through the inbox.
     /// </summary>
     public Task<JsonElement?> ReplyAsync(string conversationId, InboxReplyParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/inbox/conversations/{Uri.EscapeDataString(conversationId)}/reply", parameters, cancellationToken);
 
     /// <summary>
     /// <c>POST /inbox/messages/:id/hide</c>: hide (<paramref name="hide"/> true,
-    /// the default) or unhide (false) a reply someone left on one of your
-    /// Threads posts, as the post owner (scope <c>inbox:write</c>). Threads only
-    /// for now, and only incoming top-level replies can be hidden (Threads does
-    /// not allow hiding nested replies); the message keeps its place in the
-    /// conversation. Returns <c>{ "data": &lt;message&gt; }</c> with
-    /// <c>hidden</c> flipped. Errors: 400 <c>unsupported_platform</c> (not an
-    /// incoming Threads reply, or the Threads inbox is not available yet), 400
-    /// <c>not_hideable</c> (nested reply or Threads refused), 401
-    /// <c>reauth_required</c> (the connection lacks the reply permission), 404
+    /// the default) or unhide (false) a comment someone left on one of your
+    /// posts, on the platform, as the post owner (scope <c>inbox:write</c>).
+    /// Facebook, Instagram, TikTok, YouTube and Threads comments (Threads:
+    /// incoming top-level replies only; Threads does not allow hiding nested
+    /// replies). On YouTube, hide sets the comment's moderation status to
+    /// rejected, which removes it and its replies from public view; unhide
+    /// publishes it again. The message keeps its place in the conversation
+    /// and the response is <c>{ "data": &lt;message&gt; }</c> with
+    /// <c>hidden</c> flipped; a hidden comment no longer counts as
+    /// unanswered. The account must have been connected with the moderation
+    /// permission (Facebook <c>pages_manage_engagement</c>, Instagram
+    /// <c>instagram_business_manage_comments</c>). Errors: 400
+    /// <c>unsupported_platform</c> (not an incoming comment on a supported
+    /// platform), 400 <c>not_hideable</c> (Threads nested reply, or Threads
+    /// refused), 401 <c>reauth_required</c> (the Threads reply permission or
+    /// the TikTok comments authorization is missing or expired), 403
+    /// <c>reconnect_required</c> (the account was connected without the
+    /// comment-moderation permission; reconnect it in the dashboard), 404
     /// <c>not_found</c> (message not in this workspace) or
-    /// <c>account_not_connected</c> (no Threads account). The Threads inbox is
-    /// currently rolling out: until Meta approves the permissions it is
-    /// disabled on production and calls return a clear error.
+    /// <c>account_not_connected</c>, 429 <c>quota_exceeded</c> (YouTube's
+    /// daily API quota is used up; retry after midnight Pacific), 502
+    /// <c>platform_error</c> (the platform rejected the call). The Threads
+    /// inbox is currently rolling out: until Meta approves the permissions it
+    /// is disabled on production and Threads calls return a clear error.
     /// <paramref name="messageId"/> is URL-encoded for you.
     /// </summary>
     public Task<JsonElement?> HideAsync(string messageId, bool hide = true, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}/hide", new { hide }, cancellationToken);
+
+    /// <summary>
+    /// <c>DELETE /inbox/messages/:id</c>: delete a comment someone left on one
+    /// of your posts, on the platform and from the inbox (scope
+    /// <c>inbox:write</c>). Facebook, Instagram and TikTok comments only:
+    /// YouTube's API does not let a channel delete other people's comments,
+    /// hide those instead (<see cref="HideAsync"/>). Replies under the deleted
+    /// comment go with it (the platforms cascade the delete and the inbox
+    /// mirrors that); their inbox ids come back as <c>removed_reply_ids</c>.
+    /// A comment that is already gone on the platform is still removed from
+    /// the inbox. This cannot be undone. Returns
+    /// <c>{ "data": { id, conversation_id, removed_reply_ids } }</c> (see
+    /// <see cref="InboxDeleteMessageResponse"/>). Errors: 400
+    /// <c>unsupported_platform</c> (not an incoming Facebook, Instagram or
+    /// TikTok comment), 401 <c>reauth_required</c> (the TikTok comments
+    /// authorization expired), 403 <c>reconnect_required</c> (the account was
+    /// connected without the comment-moderation permission; reconnect it in
+    /// the dashboard), 404 <c>not_found</c> (message not in this workspace)
+    /// or <c>account_not_connected</c>, 502 <c>platform_error</c> (the
+    /// platform rejected the call). <paramref name="messageId"/> is
+    /// URL-encoded for you.
+    /// </summary>
+    public Task<JsonElement?> DeleteMessageAsync(string messageId, CancellationToken cancellationToken = default)
+        => _client.DeleteAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}", cancellationToken);
+
+    /// <summary>
+    /// <c>GET /inbox/next</c>: the next conversation that needs an answer, a
+    /// work queue for answering the inbox (scope <c>inbox:read</c>). Returns
+    /// the oldest (by default) item that still needs a reply, together with
+    /// its conversation so far and the post it belongs to, so a reply can be
+    /// drafted from one call. An item needs an answer when it is the
+    /// customer's latest DM with no reply after it (Instagram/Facebook DMs
+    /// within the 24-hour messaging window only, since Meta refuses replies
+    /// outside it), or a comment/mention that has not been replied to and is
+    /// not hidden. Replies typed in the native apps count as answers (they
+    /// are mirrored into the inbox), so a thread a colleague answered on
+    /// their phone is not served again. Instagram mentions are skipped (no
+    /// reply path). Looks at the last 30 days of activity.
+    ///
+    /// Only unread items are served by default: marking a conversation read
+    /// (<see cref="MarkReadAsync"/>) is how to skip one for good; set
+    /// <see cref="InboxNextParams.IncludeRead"/> to include
+    /// read-but-unanswered items. <see cref="InboxNextParams.Exclude"/> is a
+    /// session-local skip. The response is
+    /// <c>{ "data": ..., "remaining": n }</c> (see
+    /// <see cref="InboxNextResponse"/>): <c>data</c> is
+    /// <c>{ conversation, message, messages }</c>, or null when nothing is
+    /// waiting; <c>message</c> is the unanswered incoming item itself, whose
+    /// <c>id</c> is what <see cref="HideAsync"/> and
+    /// <see cref="DeleteMessageAsync"/> take and whose <c>conversation_id</c>
+    /// is what <see cref="ReplyAsync"/> takes; <c>messages</c> is the
+    /// conversation so far, oldest first; <c>remaining</c> counts the
+    /// unanswered items still waiting after this one (capped at 500), 0 when
+    /// <c>data</c> is null. To chain the queue, set
+    /// <see cref="InboxReplyParams.IncludeNext"/> on <see cref="ReplyAsync"/>
+    /// and it returns the next item in the same response. Errors: 400
+    /// <c>validation_error</c> (unknown platform, type or order).
+    /// </summary>
+    public Task<JsonElement?> NextAsync(InboxNextParams? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var exclude = parameters?.Exclude is { Count: > 0 } ids ? string.Join(",", ids) : null;
+        var query = new List<KeyValuePair<string, string?>>
+        {
+            new("platform", parameters?.Platform),
+            new("type", parameters?.Type),
+            new("order", parameters?.Order),
+            new("include_read", parameters?.IncludeRead is bool includeRead ? (includeRead ? "true" : "false") : null),
+            new("exclude", exclude),
+        };
+        return _client.GetAsync("/inbox/next", query, cancellationToken);
+    }
 }

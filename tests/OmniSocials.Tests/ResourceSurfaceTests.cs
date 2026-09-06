@@ -22,7 +22,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
-    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync")]
+    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,DeleteMessageAsync,NextAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
     {
         foreach (var name in expectedMethods.Split(','))

@@ -43,7 +43,10 @@ public sealed class InboxParticipant
     public string? ProfilePicture { get; set; }
 }
 
-/// <summary>The post a comment/mention conversation is attached to (null for DMs).</summary>
+/// <summary>
+/// The post a comment/mention conversation is attached to (null for DMs), so a
+/// reply can be drafted with the post in view.
+/// </summary>
 public sealed class InboxPostRef
 {
     [JsonPropertyName("id")]
@@ -52,8 +55,23 @@ public sealed class InboxPostRef
     [JsonPropertyName("caption")]
     public string? Caption { get; set; }
 
+    /// <summary>Image URL of the post (or the video's cover).</summary>
     [JsonPropertyName("thumbnail")]
     public string? Thumbnail { get; set; }
+
+    /// <summary>
+    /// Public link to the post when the platform provides one (Instagram,
+    /// Facebook, YouTube, TikTok, LinkedIn, Threads); null otherwise.
+    /// </summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    /// <summary>
+    /// The platform's own media label when known (e.g. "IMAGE", "VIDEO",
+    /// "CAROUSEL_ALBUM" on Instagram); null otherwise.
+    /// </summary>
+    [JsonPropertyName("media_type")]
+    public string? MediaType { get; set; }
 }
 
 /// <summary>The most recent message summary shown on a conversation.</summary>
@@ -146,9 +164,9 @@ public sealed class InboxMessage
     public string? ParentCommentId { get; set; }
 
     /// <summary>
-    /// Threads replies only: true when the reply is hidden on Threads (see
-    /// <see cref="InboxResource.HideAsync"/>). Null for every other
-    /// platform/message.
+    /// Comments and mentions only: true when the comment is hidden on the
+    /// platform (see <see cref="InboxResource.HideAsync"/>), false when it is
+    /// not. Null for DMs, which have no notion of hidden.
     /// </summary>
     [JsonPropertyName("hidden")]
     public bool? Hidden { get; set; }
@@ -224,6 +242,22 @@ public sealed class InboxReplyResponse
 
     [JsonPropertyName("message")]
     public string? Message { get; set; }
+
+    /// <summary>
+    /// Only when <see cref="InboxReplyParams.IncludeNext"/> was set: the next
+    /// conversation that needs an answer (the same object
+    /// <see cref="InboxResource.NextAsync"/> returns under <c>data</c>), or
+    /// null when nothing is waiting.
+    /// </summary>
+    [JsonPropertyName("next")]
+    public InboxNextUnanswered? Next { get; set; }
+
+    /// <summary>
+    /// Only when <see cref="InboxReplyParams.IncludeNext"/> was set: unanswered
+    /// items still waiting after <see cref="Next"/> (capped at 500).
+    /// </summary>
+    [JsonPropertyName("remaining")]
+    public int? Remaining { get; set; }
 }
 
 /// <summary>
@@ -234,4 +268,71 @@ public sealed class InboxHideResponse
 {
     [JsonPropertyName("data")]
     public InboxMessage Data { get; set; } = new();
+}
+
+/// <summary>The <c>data</c> of <c>DELETE /inbox/messages/:id</c>.</summary>
+public sealed class InboxDeletedMessage
+{
+    /// <summary>The deleted message id.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("conversation_id")]
+    public string ConversationId { get; set; } = "";
+
+    /// <summary>Inbox ids of replies removed together with the comment.</summary>
+    [JsonPropertyName("removed_reply_ids")]
+    public IList<string> RemovedReplyIds { get; set; } = new List<string>();
+}
+
+/// <summary>Envelope for <c>DELETE /inbox/messages/:id</c>.</summary>
+public sealed class InboxDeleteMessageResponse
+{
+    [JsonPropertyName("data")]
+    public InboxDeletedMessage Data { get; set; } = new();
+}
+
+/// <summary>
+/// The next conversation that needs an answer, with everything needed to draft
+/// the reply. What <c>GET /inbox/next</c> returns under <c>data</c>, and what
+/// a reply with <see cref="InboxReplyParams.IncludeNext"/> returns as
+/// <c>next</c>.
+/// </summary>
+public sealed class InboxNextUnanswered
+{
+    [JsonPropertyName("conversation")]
+    public InboxConversation Conversation { get; set; } = new();
+
+    /// <summary>
+    /// The unanswered incoming message itself: the customer's latest DM, or
+    /// the specific comment. Its <c>id</c> is what
+    /// <see cref="InboxResource.HideAsync"/> and
+    /// <see cref="InboxResource.DeleteMessageAsync"/> take; its
+    /// <c>conversation_id</c> is what <see cref="InboxResource.ReplyAsync"/>
+    /// takes.
+    /// </summary>
+    [JsonPropertyName("message")]
+    public InboxMessage Message { get; set; } = new();
+
+    /// <summary>
+    /// The conversation so far, oldest first (the most recent 50 messages for
+    /// long DM threads).
+    /// </summary>
+    [JsonPropertyName("messages")]
+    public IList<InboxMessage> Messages { get; set; } = new List<InboxMessage>();
+}
+
+/// <summary>Envelope for <c>GET /inbox/next</c>.</summary>
+public sealed class InboxNextResponse
+{
+    /// <summary>The next item, or null when nothing is waiting.</summary>
+    [JsonPropertyName("data")]
+    public InboxNextUnanswered? Data { get; set; }
+
+    /// <summary>
+    /// Unanswered items still waiting after this one (capped at 500). 0 when
+    /// <see cref="Data"/> is null.
+    /// </summary>
+    [JsonPropertyName("remaining")]
+    public int Remaining { get; set; }
 }

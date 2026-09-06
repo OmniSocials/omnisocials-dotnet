@@ -169,6 +169,42 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Inbox_next_builds_the_query_and_delete_message_uses_DELETE()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":null,\"remaining\":0}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"123\",\"conversation_id\":\"c1\",\"removed_reply_ids\":[]}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"9\"},\"next\":null,\"remaining\":0}");
+        using var client = CreateClient(handler);
+
+        await client.Inbox.NextAsync(new InboxNextParams
+        {
+            Platform = "instagram",
+            Type = "comment",
+            Order = "newest",
+            IncludeRead = true,
+            Exclude = new[] { "c1", "c2" },
+        });
+        await client.Inbox.DeleteMessageAsync("123");
+        await client.Inbox.ReplyAsync("c3", new InboxReplyParams { Text = "hi", IncludeNext = true });
+
+        var nextUri = handler.Requests[0].RequestUri!;
+        var nextQuery = Uri.UnescapeDataString(nextUri.Query);
+        Assert.Equal("/v1/inbox/next", nextUri.AbsolutePath);
+        Assert.Contains("platform=instagram", nextQuery);
+        Assert.Contains("type=comment", nextQuery);
+        Assert.Contains("order=newest", nextQuery);
+        Assert.Contains("include_read=true", nextQuery);
+        Assert.Contains("exclude=c1,c2", nextQuery);
+
+        Assert.Equal(HttpMethod.Delete, handler.Requests[1].Method);
+        Assert.Equal("https://api.test.local/v1/inbox/messages/123",
+            handler.Requests[1].RequestUri!.OriginalString);
+
+        Assert.True(Parse(handler.RequestBodies[2]!).GetProperty("include_next").GetBoolean());
+    }
+
+    [Fact]
     public async Task Locations_search_overload_builds_platform_and_coordinate_queries()
     {
         var handler = new StubHttpMessageHandler();
