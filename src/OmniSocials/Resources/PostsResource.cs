@@ -78,7 +78,7 @@ public sealed class PostsResource
     public Task<JsonElement?> UpdateAsync(string id, PostUpdateParams parameters, CancellationToken cancellationToken = default)
         => _client.PatchAsync($"/posts/{Uri.EscapeDataString(id)}", parameters, cancellationToken);
 
-    /// <summary><c>DELETE /posts/:id</c>: delete a post. Resolves to null (204).</summary>
+    /// <summary><c>DELETE /posts/:id</c>: remove a post from OmniSocials (the live post stays on the platform). Resolves to null (204).</summary>
     public Task<JsonElement?> DeleteAsync(string id, CancellationToken cancellationToken = default)
         => _client.DeleteAsync($"/posts/{Uri.EscapeDataString(id)}", cancellationToken);
 
