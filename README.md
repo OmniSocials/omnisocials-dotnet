@@ -526,9 +526,8 @@ only; TikTok replies are capped at 150 characters. Threads conversations are
 `type` `"comment"` (replies people leave on your Threads posts; conversation
 ids look like `threads_comment_<rootPostId>`) and `"mention"`
 (`threads_mention_<postId>`); there are no Threads DMs, and a reply publishes
-as a native Threads reply. The Threads inbox is currently rolling out; until
-Meta approves the permissions it is disabled on production and calls return a
-clear error, and it needs a Threads connection with the reply permission (a
+as a native Threads reply. The Threads inbox needs a Threads connection with
+the reply permission (a
 connection without it throws a 401 `AuthenticationException` with code
 `reauth_required`; reconnect Threads to fix it). The list endpoints use
 **cursor pagination**: page on by passing the previous response's
