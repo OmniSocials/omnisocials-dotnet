@@ -26,9 +26,9 @@ public sealed class InboxResource
     /// Threads posts; conversation ids look like
     /// <c>threads_comment_&lt;rootPostId&gt;</c>) and "mention"
     /// (<c>threads_mention_&lt;postId&gt;</c>); there are no Threads DMs. The
-    /// Threads inbox is currently rolling out: until Meta approves the
-    /// permissions it is disabled on production, and it needs a Threads
-    /// connection with the reply permission. Uses cursor pagination: pass the
+    /// Threads inbox needs a Threads connection with the reply permissions;
+    /// connections made before those permissions existed must be reconnected
+    /// once. Uses cursor pagination: pass the
     /// previous response's <c>pagination.next_cursor</c> as
     /// <see cref="InboxConversationListParams.Cursor"/> to keep paging while
     /// <c>pagination.has_more</c> is true.
@@ -81,10 +81,9 @@ public sealed class InboxResource
     /// message. <paramref name="conversationId"/> is URL-encoded for you.
     ///
     /// On a Threads conversation the reply publishes as a native Threads reply.
-    /// The Threads inbox is currently rolling out: until Meta approves the
-    /// permissions it is disabled on production, and it needs a Threads
-    /// connection with the reply permission. When the Threads connection lacks
-    /// that permission this throws a 401 <see cref="AuthenticationException"/>
+    /// The Threads inbox needs a Threads connection with the reply permission.
+    /// When the Threads connection lacks that permission (connected before it
+    /// existed) this throws a 401 <see cref="AuthenticationException"/>
     /// with code <c>reauth_required</c> (reconnect Threads to fix it).
     ///
     /// X DM replies cost 2 prepaid credits per send, debited from the company
@@ -130,8 +129,9 @@ public sealed class InboxResource
     /// <c>account_not_connected</c>, 429 <c>quota_exceeded</c> (YouTube's
     /// daily API quota is used up; retry after midnight Pacific), 502
     /// <c>platform_error</c> (the platform rejected the call). The Threads
-    /// inbox is currently rolling out: until Meta approves the permissions it
-    /// is disabled on production and Threads calls return a clear error.
+    /// inbox needs a Threads connection with the reply permissions; a
+    /// connection made before those permissions existed answers 401
+    /// <c>reauth_required</c> until reconnected.
     /// <paramref name="messageId"/> is URL-encoded for you.
     /// </summary>
     public Task<JsonElement?> HideAsync(string messageId, bool hide = true, CancellationToken cancellationToken = default)
