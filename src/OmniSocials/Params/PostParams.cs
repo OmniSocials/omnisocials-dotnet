@@ -192,6 +192,17 @@ public class PostCreateParams
     /// </summary>
     [JsonPropertyName("linkedin_poll")]
     public Dictionary<string, object?>? LinkedinPoll { get; set; }
+
+    /// <summary>
+    /// Video thumbnail for a post whose media is one video:
+    /// <c>{ ["type"] = "frame", ["thumb_offset"] = 3000 }</c> or
+    /// <c>{ ["type"] = "custom", ["cover_url"] = "https://..." }</c>, plus an
+    /// optional <c>overrides</c> dictionary keyed by platform id. Applied on
+    /// Instagram, Facebook, LinkedIn, TikTok (frame only), Pinterest and
+    /// YouTube Shorts.
+    /// </summary>
+    [JsonPropertyName("video_cover")]
+    public Dictionary<string, object?>? VideoCover { get; set; }
 }
 
 /// <summary>
@@ -283,6 +294,14 @@ public class PostUpdateParams
     /// </summary>
     [JsonPropertyName("linkedin_poll")]
     public Dictionary<string, object?>? LinkedinPoll { get; set; }
+
+    /// <summary>
+    /// Replaces the stored video cover wholesale (see
+    /// <see cref="PostCreateParams.VideoCover"/> for the shape). Omit to leave
+    /// it untouched.
+    /// </summary>
+    [JsonPropertyName("video_cover")]
+    public Dictionary<string, object?>? VideoCover { get; set; }
 }
 
 /// <summary>Query parameters for <c>GET /posts</c>.</summary>
