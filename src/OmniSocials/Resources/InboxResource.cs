@@ -95,6 +95,23 @@ public sealed class InboxResource
     /// up and re-enable it in the dashboard to resume; DMs that arrive while
     /// suspended are not recovered).
     ///
+    /// On comment and mention threads, set
+    /// <see cref="InboxReplyParams.MessageId"/> (the <c>id</c> of the comment
+    /// being answered: <c>message.id</c> from <see cref="NextAsync"/>, or a
+    /// message <c>id</c> from <see cref="GetMessagesAsync"/>). Every comment
+    /// on a post shares one conversation, so without it the reply is posted
+    /// under the newest comment on the post, which may be a different person
+    /// than the one you drafted for. Ignored for DMs. 404 <c>not_found</c>
+    /// when it is not an incoming message of this conversation.
+    ///
+    /// Instagram and Facebook DMs can only be answered within 24 hours of the
+    /// customer's last message (Meta policy). That is checked before the
+    /// send: a closed window throws a 422 <see cref="ApiException"/> with
+    /// code <c>outside_messaging_window</c> and nothing is sent
+    /// (<see cref="NextAsync"/> reports the same in <c>reply_window</c>).
+    /// Answer such a DM from the Instagram or Facebook app (mirrored into the
+    /// inbox) or mark the conversation read; do not retry.
+    ///
     /// Set <see cref="InboxReplyParams.IncludeNext"/> to also get <c>next</c>
     /// (the next conversation that needs an answer, the same object
     /// <see cref="NextAsync"/> returns under <c>data</c>, using its default
@@ -128,10 +145,16 @@ public sealed class InboxResource
     /// <c>not_found</c> (message not in this workspace) or
     /// <c>account_not_connected</c>, 429 <c>quota_exceeded</c> (YouTube's
     /// daily API quota is used up; retry after midnight Pacific), 502
-    /// <c>platform_error</c> (the platform rejected the call). The Threads
-    /// inbox needs a Threads connection with the reply permissions; a
-    /// connection made before those permissions existed answers 401
-    /// <c>reauth_required</c> until reconnected.
+    /// <c>platform_error</c> (the platform rejected the call), 502
+    /// <c>hide_not_applied</c> (Instagram accepted the call but, read back,
+    /// still reports the comment in its old state; this happens with
+    /// comments Instagram shows under "Comments from Facebook" on a reel
+    /// that is also shared to Facebook, which live on Facebook where
+    /// Instagram's hide does not reach them; the inbox row is left
+    /// unchanged, so hide it in the Instagram or Facebook app and do not
+    /// retry). The Threads inbox needs a Threads connection with the reply
+    /// permissions; a connection made before those permissions existed
+    /// answers 401 <c>reauth_required</c> until reconnected.
     /// <paramref name="messageId"/> is URL-encoded for you.
     /// </summary>
     public Task<JsonElement?> HideAsync(string messageId, bool hide = true, CancellationToken cancellationToken = default)
@@ -164,13 +187,18 @@ public sealed class InboxResource
     /// <summary>
     /// <c>GET /inbox/next</c>: the next conversation that needs an answer, a
     /// work queue for answering the inbox (scope <c>inbox:read</c>). Returns
-    /// the oldest (by default) item that still needs a reply, together with
-    /// its conversation so far and the post it belongs to, so a reply can be
-    /// drafted from one call. An item needs an answer when it is the
-    /// customer's latest DM with no reply after it (Instagram/Facebook DMs
-    /// within the 24-hour messaging window only, since Meta refuses replies
-    /// outside it), or a comment/mention that has not been replied to and is
-    /// not hidden. Replies typed in the native apps count as answers (they
+    /// one item that still needs a reply, together with its conversation so
+    /// far and the post it belongs to, so a reply can be drafted from one
+    /// call. An item needs an answer when it is the customer's latest DM
+    /// with no reply after it, or a comment/mention that has not been
+    /// replied to and is not hidden. Order: DMs that can still be answered
+    /// come first (Instagram/Facebook DMs inside Meta's 24-hour window, the
+    /// one whose window closes soonest first, and X DMs), then
+    /// Instagram/Facebook DMs whose window has closed (served with
+    /// <c>reply_window.open</c> false: answer them from the native app or
+    /// mark them read), then comments and mentions, oldest first by default;
+    /// <see cref="InboxNextParams.Order"/> "newest" reverses the order
+    /// within each group. Replies typed in the native apps count as answers (they
     /// are mirrored into the inbox), so a thread a colleague answered on
     /// their phone is not served again. Instagram mentions are skipped (no
     /// reply path). Looks at the last 30 days of activity.
@@ -182,12 +210,18 @@ public sealed class InboxResource
     /// session-local skip. The response is
     /// <c>{ "data": ..., "remaining": n }</c> (see
     /// <see cref="InboxNextResponse"/>): <c>data</c> is
-    /// <c>{ conversation, message, messages }</c>, or null when nothing is
-    /// waiting; <c>message</c> is the unanswered incoming item itself, whose
-    /// <c>id</c> is what <see cref="HideAsync"/> and
-    /// <see cref="DeleteMessageAsync"/> take and whose <c>conversation_id</c>
-    /// is what <see cref="ReplyAsync"/> takes; <c>messages</c> is the
-    /// conversation so far, oldest first; <c>remaining</c> counts the
+    /// <c>{ conversation, message, messages, reply_window }</c>, or null when
+    /// nothing is waiting; <c>message</c> is the unanswered incoming item
+    /// itself, whose <c>id</c> is what <see cref="HideAsync"/> and
+    /// <see cref="DeleteMessageAsync"/> take and the
+    /// <see cref="InboxReplyParams.MessageId"/> to set on
+    /// <see cref="ReplyAsync"/> for comment threads, and whose
+    /// <c>conversation_id</c> is what <see cref="ReplyAsync"/> takes;
+    /// <c>messages</c> is the conversation so far, oldest first;
+    /// <c>reply_window</c> (<see cref="InboxReplyWindow"/>) has <c>open</c>
+    /// false only for an Instagram/Facebook DM past its 24-hour window, which
+    /// <see cref="ReplyAsync"/> refuses with 422
+    /// <c>outside_messaging_window</c>; <c>remaining</c> counts the
     /// unanswered items still waiting after this one (capped at 500), 0 when
     /// <c>data</c> is null. To chain the queue, set
     /// <see cref="InboxReplyParams.IncludeNext"/> on <see cref="ReplyAsync"/>

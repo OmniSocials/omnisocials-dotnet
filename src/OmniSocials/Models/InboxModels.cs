@@ -307,9 +307,12 @@ public sealed class InboxNextUnanswered
     /// The unanswered incoming message itself: the customer's latest DM, or
     /// the specific comment. Its <c>id</c> is what
     /// <see cref="InboxResource.HideAsync"/> and
-    /// <see cref="InboxResource.DeleteMessageAsync"/> take; its
-    /// <c>conversation_id</c> is what <see cref="InboxResource.ReplyAsync"/>
-    /// takes.
+    /// <see cref="InboxResource.DeleteMessageAsync"/> take, and the
+    /// <see cref="InboxReplyParams.MessageId"/> to set on
+    /// <see cref="InboxResource.ReplyAsync"/> for comment threads (so the
+    /// reply lands under this comment, not under the newest one on the
+    /// post); its <c>conversation_id</c> is what
+    /// <see cref="InboxResource.ReplyAsync"/> takes.
     /// </summary>
     [JsonPropertyName("message")]
     public InboxMessage Message { get; set; } = new();
@@ -320,6 +323,40 @@ public sealed class InboxNextUnanswered
     /// </summary>
     [JsonPropertyName("messages")]
     public IList<InboxMessage> Messages { get; set; } = new List<InboxMessage>();
+
+    /// <summary>
+    /// Whether <see cref="InboxResource.ReplyAsync"/> can still answer this
+    /// item; see <see cref="InboxReplyWindow"/>.
+    /// </summary>
+    [JsonPropertyName("reply_window")]
+    public InboxReplyWindow ReplyWindow { get; set; } = new();
+}
+
+/// <summary>
+/// Whether a reply can still be sent through the API. Only Instagram and
+/// Facebook DMs have a window (Meta: 24 hours after the customer's last
+/// message); every other item has <see cref="Open"/> true and
+/// <see cref="ClosesAt"/> null.
+/// </summary>
+public sealed class InboxReplyWindow
+{
+    /// <summary>
+    /// False when the item is an Instagram/Facebook DM whose 24-hour window
+    /// has closed. It is still served (the customer is still waiting), but
+    /// <see cref="InboxResource.ReplyAsync"/> answers 422
+    /// <c>outside_messaging_window</c>: answer it from the Instagram or
+    /// Facebook app (that reply is mirrored into the inbox and clears the
+    /// item) or mark the conversation read to skip it.
+    /// </summary>
+    [JsonPropertyName("open")]
+    public bool Open { get; set; } = true;
+
+    /// <summary>
+    /// When the window closes or closed (the customer's last message + 24 h);
+    /// null when there is no window.
+    /// </summary>
+    [JsonPropertyName("closes_at")]
+    public string? ClosesAt { get; set; }
 }
 
 /// <summary>Envelope for <c>GET /inbox/next</c>.</summary>

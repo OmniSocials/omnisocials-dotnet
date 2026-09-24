@@ -575,7 +575,7 @@ await client.Inbox.HideAsync(messageId, hide: false); // unhide
 await client.Inbox.DeleteMessageAsync(messageId);
 ```
 
-**Work queue: what needs an answer.** `NextAsync` hands out the next conversation that still needs a reply (the customer's latest DM with no reply after it, or an unreplied comment/mention that is not hidden), with the whole thread and the post it belongs to (`post.url`, `post.media_type`), so a reply can be drafted from one call. Replies typed in the native apps count as answers. Only unread items are served by default, so `MarkReadAsync` is the durable way to skip one; `Exclude` skips conversation ids for the current session only. Set `IncludeNext` on `ReplyAsync` to get the following item in the same response. `InboxConversationListParams { Unanswered = true }` gives the same set as a plain list. Typed models: `InboxNextResponse` / `InboxNextUnanswered`, `InboxDeleteMessageResponse`.
+**Work queue: what needs an answer.** `NextAsync` hands out the next conversation that still needs a reply (the customer's latest DM with no reply after it, or an unreplied comment/mention that is not hidden), with the whole thread and the post it belongs to (`post.url`, `post.media_type`), so a reply can be drafted from one call. DMs that can still be answered come first, then Instagram/Facebook DMs whose 24-hour window has closed (`reply_window.open` is false: answer those from the native app or mark them read), then comments and mentions, oldest first. Replies typed in the native apps count as answers. Only unread items are served by default, so `MarkReadAsync` is the durable way to skip one; `Exclude` skips conversation ids for the current session only. Always set `MessageId` to the served `message.id` on `ReplyAsync` for comment threads: every comment on a post shares one conversation, and without it the reply goes under the newest comment on the post. Set `IncludeNext` on `ReplyAsync` to get the following item in the same response. `InboxConversationListParams { Unanswered = true }` gives the same set as a plain list. Typed models: `InboxNextResponse` / `InboxNextUnanswered` / `InboxReplyWindow`, `InboxDeleteMessageResponse`.
 
 ```csharp
 var next = await client.Inbox.NextAsync(new InboxNextParams { Platform = "instagram" });
@@ -585,9 +585,20 @@ while (item.ValueKind != JsonValueKind.Null)
     var message = item.GetProperty("message");
     Console.WriteLine($"{message.GetProperty("sender").GetProperty("username").GetString()}: {message.GetProperty("text").GetString()}");
 
+    if (!item.GetProperty("reply_window").GetProperty("open").GetBoolean())
+    {
+        // An Instagram/Facebook DM past Meta's 24-hour window: ReplyAsync would
+        // throw 422 outside_messaging_window. Answer it in the app, or skip it.
+        await client.Inbox.MarkReadAsync(message.GetProperty("conversation_id").GetString()!);
+        next = await client.Inbox.NextAsync(new InboxNextParams { Platform = "instagram" });
+        item = next!.Value.GetProperty("data");
+        continue;
+    }
+
     var reply = await client.Inbox.ReplyAsync(message.GetProperty("conversation_id").GetString()!, new InboxReplyParams
     {
         Text = "Thanks! DM sent.",
+        MessageId = message.GetProperty("id").GetString(), // the comment being answered, not the newest one
         IncludeNext = true,
     });
     item = reply!.Value.GetProperty("next"); // JSON null when nothing else is waiting; "remaining" sits beside it

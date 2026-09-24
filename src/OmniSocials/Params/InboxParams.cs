@@ -20,11 +20,13 @@ public sealed class InboxConversationListParams
 
     /// <summary>
     /// Only return conversations that still need an answer: the customer's
-    /// latest DM has no reply after it (Instagram/Facebook DMs within the
-    /// 24-hour messaging window only), or a comment/mention that has not been
-    /// replied to and is not hidden. Replies typed in the native apps count
-    /// as answers (they are mirrored into the inbox). Read state is ignored
-    /// here; use <see cref="InboxResource.NextAsync"/> for a work queue.
+    /// latest DM has no reply after it (Instagram/Facebook DMs past Meta's
+    /// 24-hour messaging window included: they cannot be answered through
+    /// the API, but the customer is still waiting), or a comment/mention
+    /// that has not been replied to and is not hidden. Replies typed in the
+    /// native apps count as answers (they are mirrored into the inbox). Read
+    /// state is ignored here; use <see cref="InboxResource.NextAsync"/> for
+    /// a work queue.
     /// </summary>
     public bool? Unanswered { get; set; }
 
@@ -61,6 +63,21 @@ public sealed class InboxReplyParams
     /// <summary>Attachment kind: "image", "video", "audio", or "file". Pair with <see cref="AttachmentUrl"/>.</summary>
     [JsonPropertyName("attachment_type")]
     public string? AttachmentType { get; set; }
+
+    /// <summary>
+    /// For comment and mention threads: the inbox id of the specific incoming
+    /// comment being answered (<c>message.id</c> from
+    /// <see cref="InboxResource.NextAsync"/>, or a message <c>id</c> from
+    /// <see cref="InboxResource.GetMessagesAsync"/>). Every comment on a post
+    /// shares one conversation, so without it the reply is posted under the
+    /// newest comment on the post, which may be a different person than the
+    /// one you drafted for. Always set it when replying to an item served by
+    /// the queue. Ignored for DMs (a DM reply goes to the conversation). 404
+    /// <c>not_found</c> when it is not an incoming message of this
+    /// conversation.
+    /// </summary>
+    [JsonPropertyName("message_id")]
+    public string? MessageId { get; set; }
 
     /// <summary>
     /// When true, the response also carries <c>next</c> (the next conversation
