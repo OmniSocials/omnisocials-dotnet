@@ -77,6 +77,7 @@ public sealed class MediaResource
             if (parameters.Name is not null) form.Add(new StringContent(parameters.Name), "\"name\"");
             if (parameters.Folder is not null) form.Add(new StringContent(parameters.Folder), "\"folder\"");
             if (parameters.FolderId is not null) form.Add(new StringContent(parameters.FolderId), "\"folder_id\"");
+            if (parameters.PdfMode is not null) form.Add(new StringContent(parameters.PdfMode), "\"pdf_mode\"");
             return form;
         }
 

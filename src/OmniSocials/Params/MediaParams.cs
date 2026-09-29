@@ -48,6 +48,13 @@ public sealed class MediaUploadParams
     /// <summary>Id of an existing folder to file the asset under.</summary>
     public string? FolderId { get; set; }
 
+    /// <summary>
+    /// PDF uploads only. "slides" (default): one image item per page, one id
+    /// each. "document": ONE item of type "document" whose single id in
+    /// media_ids expands into every page.
+    /// </summary>
+    public string? PdfMode { get; set; }
+
     /// <summary>Create upload params from a file on disk.</summary>
     public static MediaUploadParams FromFile(string path, string? name = null, string? folder = null)
         => new() { FilePath = path, Name = name, Folder = folder };
@@ -82,6 +89,10 @@ public class MediaUploadFromUrlParams
     /// <summary>Id of an existing folder to file the asset under.</summary>
     [JsonPropertyName("folder_id")]
     public string? FolderId { get; set; }
+
+    /// <summary>PDF uploads only: "slides" (default) or "document" (one item whose single id expands into every page).</summary>
+    [JsonPropertyName("pdf_mode")]
+    public string? PdfMode { get; set; }
 }
 
 /// <summary>Body for <c>POST /media/upload-from-base64</c>.</summary>
@@ -109,6 +120,10 @@ public class MediaUploadFromBase64Params
     /// <summary>Id of an existing folder to file the asset under.</summary>
     [JsonPropertyName("folder_id")]
     public string? FolderId { get; set; }
+
+    /// <summary>PDF uploads only: "slides" (default) or "document" (one item whose single id expands into every page).</summary>
+    [JsonPropertyName("pdf_mode")]
+    public string? PdfMode { get; set; }
 }
 
 /// <summary>
