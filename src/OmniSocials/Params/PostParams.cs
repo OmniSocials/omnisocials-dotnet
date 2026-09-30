@@ -198,8 +198,9 @@ public class PostCreateParams
     /// <c>{ ["type"] = "frame", ["thumb_offset"] = 3000 }</c> or
     /// <c>{ ["type"] = "custom", ["cover_url"] = "https://..." }</c>, plus an
     /// optional <c>overrides</c> dictionary keyed by platform id. Applied on
-    /// Instagram, Facebook, LinkedIn, TikTok (frame only), Pinterest and
-    /// YouTube Shorts.
+    /// Instagram, Facebook, LinkedIn, TikTok (frame only) and Pinterest. On
+    /// YouTube Shorts the cover is stored as the default thumbnail, but
+    /// YouTube shows a frame from the video on Shorts.
     /// </summary>
     [JsonPropertyName("video_cover")]
     public Dictionary<string, object?>? VideoCover { get; set; }
