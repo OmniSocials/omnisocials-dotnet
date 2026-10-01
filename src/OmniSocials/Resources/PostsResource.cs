@@ -121,4 +121,18 @@ public sealed class PostsResource
     /// </summary>
     public Task<JsonElement?> RejectAsync(string id, string? comment = null, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/posts/{Uri.EscapeDataString(id)}/reject", new { comment }, cancellationToken);
+
+    /// <summary>
+    /// <c>GET /posts/:id/approval</c>: the approval review of a post - every
+    /// step with its approvers and their decisions, the rejection with its
+    /// reason, and the comment thread. Use it when <c>approval_status</c> is
+    /// <c>rejected</c> to learn who rejected the post and why, or while it is
+    /// <c>pending</c> to see who the post waits for. A post without an
+    /// approval workflow returns <c>status: "none"</c> with empty
+    /// <c>steps</c> and <c>comments</c>. Read-only; requires the
+    /// <c>posts:read</c> scope. Deserialize into
+    /// <see cref="PostApprovalResponse"/> for typed access.
+    /// </summary>
+    public Task<JsonElement?> GetApprovalAsync(string id, CancellationToken cancellationToken = default)
+        => _client.GetAsync($"/posts/{Uri.EscapeDataString(id)}/approval", null, cancellationToken);
 }

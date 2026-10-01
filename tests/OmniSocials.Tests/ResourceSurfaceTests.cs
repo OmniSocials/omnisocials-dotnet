@@ -13,7 +13,7 @@ public class ResourceSurfaceTests
 {
     [Theory]
     [InlineData(typeof(PostsResource),
-        "ListAsync,GetAsync,RecentPlatformAsync,CreateAsync,CreateAndPublishAsync,UpdateAsync,DeleteAsync,PublishAsync")]
+        "ListAsync,GetAsync,RecentPlatformAsync,CreateAsync,CreateAndPublishAsync,UpdateAsync,DeleteAsync,PublishAsync,ApproveAsync,RejectAsync,GetApprovalAsync")]
     [InlineData(typeof(MediaResource),
         "ListAsync,GetAsync,UploadAsync,UploadFromUrlAsync,UploadFromBase64Async,CreateUploadUrlAsync,CheckAsync,UpdateAsync,DeleteAsync")]
     [InlineData(typeof(FoldersResource), "ListAsync,CreateAsync,UpdateAsync,DeleteAsync")]

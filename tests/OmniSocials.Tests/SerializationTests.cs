@@ -329,6 +329,55 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Get_approval_reads_the_review_and_deserializes()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":{\"post_id\":\"123456\",\"status\":\"rejected\"," +
+            "\"workflow\":{\"id\":null,\"name\":\"Content approval\"}," +
+            "\"requested_by\":{\"id\":\"7d1f3c52\",\"name\":\"Alex\"}," +
+            "\"requested_at\":\"2026-10-01T09:00:00.000Z\",\"current_step\":null," +
+            "\"steps\":[{\"order\":1,\"name\":\"Client approval\",\"require_mode\":\"all\",\"status\":\"rejected\"," +
+            "\"approvers\":[{\"id\":\"c4a09e1d\",\"name\":\"Jordan\",\"email\":null,\"status\":\"rejected\"," +
+            "\"decided_at\":\"2026-10-01T14:30:00.000Z\",\"comment\":\"Wrong product photo\"}]}]," +
+            "\"rejection\":{\"by\":{\"id\":\"c4a09e1d\",\"name\":\"Jordan\"},\"reason\":\"Wrong product photo\"," +
+            "\"at\":\"2026-10-01T14:30:00.000Z\",\"step\":1}," +
+            "\"comments\":[{\"id\":\"5f3a2b1c\",\"author\":null,\"message\":\"Caption edited\"," +
+            "\"account\":null,\"created_at\":\"2026-10-01T14:28:00.000Z\"}]}}");
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":{\"post_id\":\"1\",\"status\":\"none\",\"workflow\":null,\"requested_by\":null," +
+            "\"requested_at\":null,\"current_step\":null,\"steps\":[],\"rejection\":null,\"comments\":[]}}");
+        using var client = CreateClient(handler);
+
+        var raw = await client.Posts.GetApprovalAsync("123456");
+
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Equal("https://api.test.local/v1/posts/123456/approval",
+            handler.Requests[0].RequestUri!.OriginalString);
+
+        var review = raw!.Value.Deserialize<PostApprovalResponse>()!.Data;
+        Assert.Equal("rejected", review.Status);
+        Assert.Null(review.Workflow!.Id);
+        Assert.Equal("Content approval", review.Workflow.Name);
+        Assert.Null(review.CurrentStep);
+        Assert.Equal("all", review.Steps[0].RequireMode);
+        Assert.Null(review.Steps[0].Approvers[0].Email);
+        Assert.Equal("Wrong product photo", review.Steps[0].Approvers[0].Comment);
+        Assert.Equal("c4a09e1d", review.Rejection!.By.Id);
+        Assert.Equal(1, review.Rejection.Step);
+        Assert.Null(review.Comments[0].Author);
+        Assert.Null(review.Comments[0].Account);
+
+        var none = (await client.Posts.GetApprovalAsync("1"))!.Value.Deserialize<PostApprovalResponse>()!.Data;
+        Assert.Equal("none", none.Status);
+        Assert.Null(none.Workflow);
+        Assert.Null(none.RequestedBy);
+        Assert.Null(none.Rejection);
+        Assert.Empty(none.Steps);
+        Assert.Empty(none.Comments);
+    }
+
+    [Fact]
     public async Task Multipart_upload_sends_file_and_fields()
     {
         var handler = new StubHttpMessageHandler();

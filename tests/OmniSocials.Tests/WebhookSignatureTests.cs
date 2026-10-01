@@ -40,6 +40,24 @@ public class WebhookSignatureTests
     }
 
     [Fact]
+    public void Rejected_event_keeps_its_approval_object()
+    {
+        const string payload =
+            "{\"id\":\"evt_2\",\"type\":\"post.rejected\",\"created_at\":\"2026-10-02T09:00:05.000Z\"," +
+            "\"data\":{\"post_id\":\"123456\",\"workspace_id\":789,\"status\":\"rejected\",\"targets\":[]," +
+            "\"approval\":{\"status\":\"rejected\",\"decided_by\":\"c4a09e1d\",\"reason\":\"Wrong product photo\"}}}";
+
+        var evt = WebhookSignature.Verify(payload, Sign(Secret, Now(), payload), Secret);
+
+        Assert.Equal("post.rejected", evt.GetProperty("type").GetString());
+        var approval = evt.GetProperty("data").GetProperty("approval");
+        Assert.Equal("rejected", approval.GetProperty("status").GetString());
+        Assert.Equal("c4a09e1d", approval.GetProperty("decided_by").GetString());
+        Assert.Equal("Wrong product photo", approval.GetProperty("reason").GetString());
+        Assert.Equal(0, evt.GetProperty("data").GetProperty("targets").GetArrayLength());
+    }
+
+    [Fact]
     public void Byte_array_payload_overload_verifies()
     {
         var signature = Sign(Secret, Now(), Payload);
