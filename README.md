@@ -533,6 +533,44 @@ await client.Posts.CreateAsync(new PostCreateParams
 });
 ```
 
+## Pinterest product tags
+
+Tag products on a Pin so people can shop the items in the image. `client.Pinterest.ListProductsAsync()` returns the product Pins of the connected Pinterest account; pass their `pin_id` values (max 24) as `["product_tags"]` in the `Pinterest` options of the post. Only product Pins of your own account can be tagged; products of other merchants cannot. The tags are added right after the Pin is published. A product that Pinterest refuses never fails the post: the outcome is on the post as `pinterest.product_tags_result` (`requested`, `tagged`, `skipped`, `error`).
+
+```csharp
+var result = (await client.Pinterest.ListProductsAsync())!.Value;
+
+if (result.TryGetProperty("error", out var error))
+{
+    // HTTP 200 without "products": pinterest_not_connected,
+    // pinterest_catalog_access_required or platform_error
+    Console.Error.WriteLine($"{error.GetProperty("code").GetString()}: {error.GetProperty("message").GetString()}");
+}
+else
+{
+    var productTags = result.GetProperty("products").EnumerateArray()
+        .Take(3)
+        .Select(product => product.GetProperty("pin_id").GetString()!)
+        .ToArray();
+
+    await client.Posts.CreateAsync(new PostCreateParams
+    {
+        Content = "Our summer picks",
+        Channels = new[] { "pinterest" },
+        MediaUrls = new[] { "https://example.com/summer-look.jpg" },
+        ScheduledAt = "2026-08-01T09:00:00Z",
+        Pinterest = new Dictionary<string, object?>
+        {
+            ["board_id"] = "1234567890",
+            ["title"] = "Summer picks",
+            ["product_tags"] = productTags,
+        },
+    });
+}
+```
+
+Without `Source` the list reads the Pinterest catalog (with `price`, `currency`, `availability` and `item_id`) when the connection has catalog access, else the account's own Pins. Catalog access is given one time in the OmniSocials composer: Pinterest options, Add products, Connect catalog. `Source = "pins"` scans up to 250 Pins per call, so `products` can be empty while `bookmark` is set; call again with `new PinterestProductListParams { Bookmark = bookmark }`. To check one Pin id or Pin link before you post, call `client.Pinterest.ValidateProductAsync("813744226420795884")`. On `Posts.UpdateAsync` the `Pinterest` dictionary replaces the stored one, so leave `["product_tags"]` out to remove the tags.
+
 ## Inbox (social inbox)
 
 Conversations (DMs, comments, mentions) across connected platforms (Instagram,

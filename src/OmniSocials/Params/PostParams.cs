@@ -125,6 +125,18 @@ public class PostCreateParams
     // Platform-specific option blocks. Dictionary values serialize as-is,
     // including explicit nulls (unlike null POCO properties, which are omitted).
 
+    /// <summary>
+    /// Pinterest options (<c>board_id</c>, <c>title</c>, <c>link</c>,
+    /// <c>alt_text</c>, ...). <c>product_tags</c> tags products on the Pin: up
+    /// to 24 product Pins of the connected Pinterest account, each as a Pin id
+    /// string (see <see cref="PinterestResource.ListProductsAsync"/>) or a Pin
+    /// link. Products of other merchants cannot be tagged. The tags are added
+    /// right after the Pin is published; a product Pinterest refuses never
+    /// fails the post, and the post's <c>pinterest</c> block then carries
+    /// <c>product_tags_result</c> (<c>requested</c>, <c>tagged</c>,
+    /// <c>skipped</c>, <c>error</c>). More than 24 entries or an invalid entry
+    /// returns <c>400 validation_error</c>.
+    /// </summary>
     [JsonPropertyName("pinterest")]
     public Dictionary<string, object?>? Pinterest { get; set; }
 
@@ -244,6 +256,11 @@ public class PostUpdateParams
     [JsonPropertyName("user_tags")]
     public IList<UserTag>? UserTags { get; set; }
 
+    /// <summary>
+    /// Replaces the stored Pinterest options wholesale, so leave
+    /// <c>product_tags</c> out (or send an empty list) to remove the product
+    /// tags.
+    /// </summary>
     [JsonPropertyName("pinterest")]
     public Dictionary<string, object?>? Pinterest { get; set; }
 

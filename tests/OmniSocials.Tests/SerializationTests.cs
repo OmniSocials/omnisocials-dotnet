@@ -228,6 +228,70 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Pinterest_list_products_builds_the_query_and_validate_sends_the_id()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"products\":[{\"pin_id\":\"813744226420795884\",\"price\":24.99}],\"bookmark\":null,\"source\":\"catalog\",\"catalog_access\":true}");
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"error\":{\"code\":\"pinterest_not_connected\",\"message\":\"No Pinterest account is connected.\"}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"valid\":true,\"pin_id\":\"813744226420795884\"}");
+        using var client = CreateClient(handler);
+
+        var list = await client.Pinterest.ListProductsAsync(new PinterestProductListParams
+        {
+            Source = "catalog",
+            ProductGroupId = "443727193917",
+            Bookmark = "abc",
+            PageSize = 50,
+        });
+        var notConnected = await client.Pinterest.ListProductsAsync();
+        var check = await client.Pinterest.ValidateProductAsync("813744226420795884");
+
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Equal(
+            "https://api.test.local/v1/pinterest/products?source=catalog&product_group_id=443727193917&bookmark=abc&page_size=50",
+            handler.Requests[0].RequestUri!.OriginalString);
+        Assert.Equal("813744226420795884", list!.Value.GetProperty("products")[0].GetProperty("pin_id").GetString());
+        Assert.True(list.Value.GetProperty("catalog_access").GetBoolean());
+
+        // No parameters: no query string. A list that could not be read is
+        // HTTP 200 with an error object and no products.
+        Assert.Equal("https://api.test.local/v1/pinterest/products",
+            handler.Requests[1].RequestUri!.OriginalString);
+        Assert.False(notConnected!.Value.TryGetProperty("products", out _));
+        Assert.Equal("pinterest_not_connected",
+            notConnected.Value.GetProperty("error").GetProperty("code").GetString());
+
+        Assert.Equal("https://api.test.local/v1/pinterest/products/validate?id=813744226420795884",
+            handler.Requests[2].RequestUri!.OriginalString);
+        Assert.True(check!.Value.GetProperty("valid").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Pinterest_product_tags_serialize_on_post_create()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\"}}");
+        using var client = CreateClient(handler);
+
+        await client.Posts.CreateAsync(new PostCreateParams
+        {
+            Content = "Our summer picks",
+            Channels = new[] { "pinterest" },
+            Pinterest = new Dictionary<string, object?>
+            {
+                ["board_id"] = "1234567890",
+                ["product_tags"] = new[] { "813744226420795884", "813744226420795885" },
+            },
+        });
+
+        var tags = Parse(handler.RequestBodies[0]!).GetProperty("pinterest").GetProperty("product_tags");
+        Assert.Equal(2, tags.GetArrayLength());
+        Assert.Equal("813744226420795884", tags[0].GetString());
+    }
+
+    [Fact]
     public async Task Hashtag_set_fields_serialize_on_post_create()
     {
         var handler = new StubHttpMessageHandler();

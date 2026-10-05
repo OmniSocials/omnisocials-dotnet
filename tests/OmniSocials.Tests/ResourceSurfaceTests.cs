@@ -5,7 +5,7 @@ using Xunit;
 namespace OmniSocials.Tests;
 
 /// <summary>
-/// Guards the full v1 endpoint surface (45 endpoints + GET /health): every
+/// Guards the full v1 endpoint surface (53 endpoints + GET /health): every
 /// resource method must exist, return Task&lt;JsonElement?&gt;, and accept a
 /// CancellationToken.
 /// </summary>
@@ -21,6 +21,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(AccountsResource), "ListAsync,GetAsync")]
     [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
+    [InlineData(typeof(PinterestResource), "ListProductsAsync,ValidateProductAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
     [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,DeleteMessageAsync,NextAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
@@ -56,6 +57,7 @@ public class ResourceSurfaceTests
         Assert.Equal(typeof(AccountsResource), client.GetProperty("Accounts")!.PropertyType);
         Assert.Equal(typeof(AnalyticsResource), client.GetProperty("Analytics")!.PropertyType);
         Assert.Equal(typeof(LocationsResource), client.GetProperty("Locations")!.PropertyType);
+        Assert.Equal(typeof(PinterestResource), client.GetProperty("Pinterest")!.PropertyType);
         Assert.Equal(typeof(WebhooksResource), client.GetProperty("Webhooks")!.PropertyType);
         Assert.Equal(typeof(InboxResource), client.GetProperty("Inbox")!.PropertyType);
 
