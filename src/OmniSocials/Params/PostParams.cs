@@ -122,6 +122,45 @@ public class PostCreateParams
     [JsonPropertyName("approval_workflow_id")]
     public string? ApprovalWorkflowId { get; set; }
 
+    /// <summary>
+    /// Planned draft. With <see cref="ScheduledAt"/>, the post is stored as <c>draft</c> and
+    /// keeps that time: it shows on the dashboard calendar at that slot with a dashed
+    /// outline, the scheduler never publishes it, and a person schedules it from the
+    /// composer (or you do with <c>Posts.UpdateAsync</c> and <see cref="PostUpdateParams.Draft"/>
+    /// = false). Use it when an agent proposes a slot that a human should confirm. Not allowed
+    /// with <c>publish_now</c> or <see cref="ApprovalWorkflowId"/> (<c>400 validation_error</c>).
+    /// Without <see cref="ScheduledAt"/> it changes nothing: that post is a draft already.
+    /// </summary>
+    [JsonPropertyName("draft")]
+    public bool? Draft { get; set; }
+
+    /// <summary>
+    /// Image fit per channel for feed images whose ratio is outside what a channel shows
+    /// uncropped, keyed by platform id (<c>instagram</c>, <c>pinterest</c>, ...), each
+    /// <c>auto</c>, <c>crop</c> or <c>keep</c>. <c>auto</c> (default): Instagram crops a tall
+    /// or wide image to 4:5 / 1.91:1 around the subject (Instagram cuts it to that window
+    /// anyway and Meta cannot boost a feed post outside it); Pinterest keeps a Pin taller
+    /// than 2:3 and reports it. <c>crop</c> / <c>keep</c> force it per channel. Decisions
+    /// come back in the response's <c>warnings</c> with code <c>image_fit</c>.
+    /// </summary>
+    [JsonPropertyName("media_fit")]
+    public Dictionary<string, string>? MediaFit { get; set; }
+
+    /// <summary>
+    /// Comment-to-DM automation bound to this post (Instagram must be in
+    /// <see cref="Channels"/>): a keyword in a comment is answered with a DM, once
+    /// per person, with an optional public reply under the comment.
+    /// <c>{ ["trigger"] = new { keywords = new[] { "guide" }, match = "word" }, ["actions"] = new { dm = new { text = "..." }, public_reply = new { enabled = true, variations = new[] { "..." } } }, ["limits"] = new { max_sends = 500 } }</c>
+    /// (see <see cref="AutomationCreateParams"/> for the fields). Needs the
+    /// <c>automations:write</c> scope on the key (<c>403 insufficient_scope</c>, checked
+    /// before anything else); a bad object is a <c>400 validation_error</c> whose message
+    /// starts with <c>comment_dm_automation: </c>. The response then carries
+    /// <c>data.comment_dm_automation</c> (the automation, with <c>post</c> null); it starts
+    /// listening once the post is live on Instagram.
+    /// </summary>
+    [JsonPropertyName("comment_dm_automation")]
+    public Dictionary<string, object?>? CommentDmAutomation { get; set; }
+
     // Platform-specific option blocks. Dictionary values serialize as-is,
     // including explicit nulls (unlike null POCO properties, which are omitted).
 
@@ -232,6 +271,43 @@ public class PostUpdateParams
 
     [JsonPropertyName("scheduled_at")]
     public string? ScheduledAt { get; set; }
+
+    /// <summary>
+    /// Planned-draft switch. <c>false</c> without <see cref="ScheduledAt"/> schedules a draft at
+    /// the time it already carries (<c>400 validation_error</c> when it has none or it is in the
+    /// past). <c>true</c> without <see cref="ScheduledAt"/> unschedules a scheduled post: it keeps
+    /// its time and stays on the calendar as a dashed draft, nothing publishes; a post waiting for
+    /// approval leaves its workflow. <c>true</c> with <see cref="ScheduledAt"/> moves the time and
+    /// keeps (or makes) the post a draft.
+    /// </summary>
+    [JsonPropertyName("draft")]
+    public bool? Draft { get; set; }
+
+    /// <summary>
+    /// Image fit per channel (same shape as <see cref="PostCreateParams.MediaFit"/>). On
+    /// update, <c>media_fit</c> alone re-decides the stored images (<c>keep</c> gives the
+    /// original back). Decisions come back in the response's <c>warnings</c> with code
+    /// <c>image_fit</c>.
+    /// </summary>
+    [JsonPropertyName("media_fit")]
+    public Dictionary<string, string>? MediaFit { get; set; }
+
+    /// <summary>
+    /// Replaces the post's comment-to-DM automation (same shape as
+    /// <see cref="PostCreateParams.CommentDmAutomation"/>). Omit to leave it untouched;
+    /// to remove it set <see cref="RemoveCommentDmAutomation"/>. Needs the
+    /// <c>automations:write</c> scope.
+    /// </summary>
+    [JsonPropertyName("comment_dm_automation")]
+    public Dictionary<string, object?>? CommentDmAutomation { get; set; }
+
+    /// <summary>
+    /// When true, sends an explicit <c>"comment_dm_automation": null</c> to remove the
+    /// post's comment-to-DM automation. Takes precedence over
+    /// <see cref="CommentDmAutomation"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool RemoveCommentDmAutomation { get; set; }
 
     [JsonPropertyName("channels")]
     public IList<string>? Channels { get; set; }

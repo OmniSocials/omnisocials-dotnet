@@ -22,6 +22,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
     [InlineData(typeof(PinterestResource), "ListProductsAsync,ValidateProductAsync")]
+    [InlineData(typeof(AutomationsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,ListEventsAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
     [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,DeleteMessageAsync,NextAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
@@ -58,6 +59,7 @@ public class ResourceSurfaceTests
         Assert.Equal(typeof(AnalyticsResource), client.GetProperty("Analytics")!.PropertyType);
         Assert.Equal(typeof(LocationsResource), client.GetProperty("Locations")!.PropertyType);
         Assert.Equal(typeof(PinterestResource), client.GetProperty("Pinterest")!.PropertyType);
+        Assert.Equal(typeof(AutomationsResource), client.GetProperty("Automations")!.PropertyType);
         Assert.Equal(typeof(WebhooksResource), client.GetProperty("Webhooks")!.PropertyType);
         Assert.Equal(typeof(InboxResource), client.GetProperty("Inbox")!.PropertyType);
 

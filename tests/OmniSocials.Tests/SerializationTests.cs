@@ -39,6 +39,40 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Draft_false_is_sent_on_update()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\",\"status\":\"scheduled\"}}");
+        using var client = CreateClient(handler);
+
+        // Scheduling a planned draft sends draft:false, so the false must
+        // survive the null-omitting serializer.
+        await client.Posts.UpdateAsync("1", new PostUpdateParams { Draft = false });
+
+        var body = Parse(handler.RequestBodies[0]!);
+        Assert.False(body.GetProperty("draft").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Media_fit_is_sent_as_a_per_channel_map()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\",\"status\":\"scheduled\"},\"warnings\":[{\"code\":\"image_fit\",\"message\":\"Kept.\",\"platform\":\"pinterest\",\"action\":\"kept\"}]}");
+        using var client = CreateClient(handler);
+
+        var result = await client.Posts.UpdateAsync("1", new PostUpdateParams
+        {
+            MediaFit = new Dictionary<string, string> { ["instagram"] = "keep", ["pinterest"] = "crop" },
+        });
+
+        var body = Parse(handler.RequestBodies[0]!);
+        Assert.Equal("keep", body.GetProperty("media_fit").GetProperty("instagram").GetString());
+        Assert.Equal("crop", body.GetProperty("media_fit").GetProperty("pinterest").GetString());
+        // The update response carries image_fit warnings like a create.
+        Assert.Equal("image_fit", result!.Value.GetProperty("warnings")[0].GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task Snake_case_property_names_are_used_on_the_wire()
     {
         var handler = new StubHttpMessageHandler();
@@ -266,6 +300,54 @@ public class SerializationTests
         Assert.Equal("https://api.test.local/v1/pinterest/products/validate?id=813744226420795884",
             handler.Requests[2].RequestUri!.OriginalString);
         Assert.True(check!.Value.GetProperty("valid").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Comment_dm_automation_serializes_on_create_and_null_removes_it_on_update()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":{\"id\":\"9\",\"status\":\"scheduled\",\"comment_dm_automation\":{\"id\":\"100000004\",\"status\":\"active\",\"post\":null}}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"9\",\"status\":\"scheduled\",\"comment_dm_automation\":null}}");
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":[{\"id\":\"1\",\"kind\":\"comment\",\"outcome\":\"sent\"}],\"counts\":{\"sent\":12,\"skipped\":3},\"pagination\":{\"total\":15,\"limit\":25,\"offset\":0,\"has_more\":false}}");
+        using var client = CreateClient(handler);
+
+        var created = await client.Posts.CreateAsync(new PostCreateParams
+        {
+            Content = "Comment GUIDE",
+            Channels = new[] { "instagram" },
+            CommentDmAutomation = new Dictionary<string, object?>
+            {
+                ["trigger"] = new { keywords = new[] { "guide" }, match = "word" },
+                ["actions"] = new { dm = new { text = "Here is the guide" } },
+                ["limits"] = new { max_sends = 500 },
+            },
+        });
+
+        var body = Parse(handler.RequestBodies[0]!);
+        var automation = body.GetProperty("comment_dm_automation");
+        Assert.Equal("guide", automation.GetProperty("trigger").GetProperty("keywords")[0].GetString());
+        Assert.Equal("Here is the guide", automation.GetProperty("actions").GetProperty("dm").GetProperty("text").GetString());
+        Assert.Equal(500, automation.GetProperty("limits").GetProperty("max_sends").GetInt32());
+        Assert.Equal("100000004", created!.Value.GetProperty("data").GetProperty("comment_dm_automation").GetProperty("id").GetString());
+
+        // RemoveCommentDmAutomation sends an explicit null, which the
+        // null-omitting serializer would otherwise drop; other unset fields
+        // stay omitted.
+        await client.Posts.UpdateAsync("9", new PostUpdateParams { RemoveCommentDmAutomation = true });
+
+        var update = Parse(handler.RequestBodies[1]!);
+        Assert.Equal(JsonValueKind.Null, update.GetProperty("comment_dm_automation").ValueKind);
+        Assert.False(update.TryGetProperty("content", out _));
+        Assert.False(update.TryGetProperty("RemoveCommentDmAutomation", out _));
+
+        // The events response is not the plain list: counts sit next to data.
+        var events = await client.Automations.ListEventsAsync("100000004", new AutomationEventListParams { Outcome = "sent", Limit = 25 });
+        Assert.Equal("https://api.test.local/v1/automations/100000004/events?outcome=sent&limit=25",
+            handler.Requests[2].RequestUri!.OriginalString);
+        Assert.Equal(12, events!.Value.GetProperty("counts").GetProperty("sent").GetInt32());
+        Assert.Equal(15, events.Value.GetProperty("pagination").GetProperty("total").GetInt32());
     }
 
     [Fact]

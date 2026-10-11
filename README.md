@@ -102,6 +102,59 @@ await client.Posts.CreateAsync(new PostCreateParams
 });
 ```
 
+### Planned drafts
+
+Set `Draft = true` with `ScheduledAt` to store the post as a draft that keeps its time. It shows on the dashboard calendar at that slot with a dashed outline and the scheduler never publishes it: a person schedules it from the composer, or you do with `UpdateAsync` and `Draft = false`. Use it when an agent proposes a slot that a human should confirm. A draft is not allowed with `publish_now` or `ApprovalWorkflowId` (`400 validation_error`). On `UpdateAsync`, `Draft = false` without `ScheduledAt` is a `400 validation_error` when the draft has no time or its time is in the past (pass a new `ScheduledAt` then), and `Draft = true` on a scheduled post unschedules it while keeping the time.
+
+```csharp
+var proposal = (await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Proposed for Friday morning",
+    Channels = new[] { "instagram", "linkedin" },
+    ScheduledAt = "2026-08-01T09:00:00Z",
+    Draft = true,
+}))!.Value.GetProperty("data");
+Console.WriteLine($"{proposal.GetProperty("status")} {proposal.GetProperty("schedule_at")}"); // draft, the time is kept
+
+// The human agrees: schedule it at the time it already carries
+await client.Posts.UpdateAsync(proposal.GetProperty("id").GetString()!, new PostUpdateParams { Draft = false });
+```
+
+### Comment-to-DM automations
+
+Answer a keyword in an Instagram comment with a DM, once per person, with an optional public reply under the comment. Set `CommentDmAutomation` on `CreateAsync` (Instagram must be in `Channels`) and the automation is bound to that post; it starts listening once the post is live. Needs the opt-in `automations:write` scope on the key. `client.Automations` manages the automations themselves (`ListAsync`, `GetAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) and reads their activity (`ListEventsAsync`, `automations:read`). On `UpdateAsync`, `CommentDmAutomation` replaces the post's automation and `RemoveCommentDmAutomation = true` removes it (it sends the explicit `null` the null-omitting serializer would otherwise drop). Instagram rules: one private reply per comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per account.
+
+```csharp
+var post = (await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Comment GUIDE and I will send you the link",
+    Channels = new[] { "instagram" },
+    ScheduledAt = "2026-08-01T09:00:00Z",
+    MediaUrls = new[] { "https://example.com/guide-cover.jpg" },
+    CommentDmAutomation = new Dictionary<string, object?>
+    {
+        ["trigger"] = new { keywords = new[] { "guide" }, match = "word" },
+        ["actions"] = new
+        {
+            dm = new { text = "Here is the guide: https://example.com/guide" },
+            public_reply = new { enabled = true, variations = new[] { "Sent you a DM!", "Check your inbox" } },
+        },
+        ["limits"] = new { max_sends = 500 },
+    },
+}))!.Value.GetProperty("data");
+var automationId = post.GetProperty("comment_dm_automation").GetProperty("id").GetString()!;
+
+// Later: who was answered, and why someone was skipped
+var events = (await client.Automations.ListEventsAsync(automationId, new AutomationEventListParams { Outcome = "sent" }))!.Value;
+Console.WriteLine(events.GetProperty("counts")); // {"sent":12,"skipped":3}
+foreach (var item in events.GetProperty("data").EnumerateArray())
+{
+    Console.WriteLine($"{item.GetProperty("person").GetProperty("username")} {item.GetProperty("outcome")}");
+}
+```
+
+The events response is `data`, `counts` and `pagination`, not the plain list: `counts` is the number of events per outcome (`sent`, `skipped`, `failed`, `pending`). An automation can also listen on a post published outside OmniSocials (`client.Automations.CreateAsync` with `InstagramMediaId`), on the next post the workspace publishes (`Trigger` with `["scope"] = "next_post"`) or on every post (`"any"`), and on DMs and story replies (`["kinds"] = new[] { "dm", "story_reply" }`).
+
 ### Publish immediately
 
 ```csharp
@@ -816,7 +869,7 @@ catch (ApiException ex)
 
 ## API scopes
 
-Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
+Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
 
 ## Documentation
 

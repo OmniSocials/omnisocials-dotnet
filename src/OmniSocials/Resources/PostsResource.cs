@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace OmniSocials;
 
@@ -63,6 +64,19 @@ public sealed class PostsResource
     /// <c>x_url_post_credits</c> warning above (create-time, non-blocking) and
     /// from the publish-time-only-the-X-target-fails behavior once enforcement
     /// starts.
+    ///
+    /// The same <c>warnings</c> array carries one <c>image_fit</c> entry per
+    /// channel decision on a feed image whose ratio is outside what the channel
+    /// shows uncropped (<c>action</c> is <c>cropped</c>, <c>kept</c> or
+    /// <c>crop_failed</c>, with <c>platform</c>, <c>media_url</c>, <c>ratio</c>,
+    /// <c>target</c> and <c>crop_url</c>); <see cref="PostCreateParams.MediaFit"/>
+    /// steers it per channel.
+    ///
+    /// <see cref="PostCreateParams.CommentDmAutomation"/> binds a comment-to-DM
+    /// automation to the post (Instagram must be in the channels; needs the
+    /// <c>automations:write</c> scope on the key). The response then carries
+    /// <c>data.comment_dm_automation</c>, and the automation starts listening
+    /// once the post is live on Instagram.
     /// </summary>
     public Task<JsonElement?> CreateAsync(PostCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/posts/create", parameters, cancellationToken);
@@ -74,9 +88,31 @@ public sealed class PostsResource
     public Task<JsonElement?> CreateAndPublishAsync(PostCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/posts/create-and-publish", parameters, cancellationToken);
 
-    /// <summary><c>PATCH /posts/:id</c>: update a draft or scheduled post.</summary>
+    /// <summary>
+    /// <c>PATCH /posts/:id</c>: update a draft or scheduled post. Like
+    /// <see cref="CreateAsync"/>, the response can carry a top-level
+    /// <c>warnings</c> array: <c>image_fit</c> entries when the update changes
+    /// the images or <c>media_fit</c> (<see cref="PostUpdateParams.MediaFit"/>
+    /// alone re-decides the stored images; <c>keep</c> gives the original back).
+    /// <see cref="PostUpdateParams.CommentDmAutomation"/> replaces the post's
+    /// comment-to-DM automation and
+    /// <see cref="PostUpdateParams.RemoveCommentDmAutomation"/> removes it
+    /// (needs the <c>automations:write</c> scope); omit both to leave it.
+    /// </summary>
     public Task<JsonElement?> UpdateAsync(string id, PostUpdateParams parameters, CancellationToken cancellationToken = default)
-        => _client.PatchAsync($"/posts/{Uri.EscapeDataString(id)}", parameters, cancellationToken);
+    {
+        object body = parameters;
+        if (parameters.RemoveCommentDmAutomation)
+        {
+            // Built by hand: an explicit null comment_dm_automation
+            // (RemoveCommentDmAutomation) must survive serialization, while
+            // unset fields are omitted.
+            var node = JsonSerializer.SerializeToNode(parameters, OmniSocialsClient.SerializerOptions)!.AsObject();
+            node["comment_dm_automation"] = null;
+            body = node;
+        }
+        return _client.PatchAsync($"/posts/{Uri.EscapeDataString(id)}", body, cancellationToken);
+    }
 
     /// <summary><c>DELETE /posts/:id</c>: remove a post from OmniSocials (the live post stays on the platform). Resolves to null (204).</summary>
     public Task<JsonElement?> DeleteAsync(string id, CancellationToken cancellationToken = default)

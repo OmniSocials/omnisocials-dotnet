@@ -10,7 +10,11 @@ public sealed class MediaResource
 
     internal MediaResource(OmniSocialsClient client) => _client = client;
 
-    /// <summary><c>GET /media</c>: list the media library (newest first).</summary>
+    /// <summary>
+    /// <c>GET /media</c>: list the media library (newest first). Each item
+    /// carries <c>width</c> and <c>height</c> (pixels; null for videos and
+    /// older files).
+    /// </summary>
     public Task<JsonElement?> ListAsync(MediaListParams? parameters = null, CancellationToken cancellationToken = default)
     {
         var query = new List<KeyValuePair<string, string?>>
@@ -108,7 +112,18 @@ public sealed class MediaResource
     /// <summary>
     /// <c>POST /media/check</c>: preflight a file's compatibility with the
     /// workspace's connected platforms BEFORE uploading. Provide one of: a
-    /// public url, an existing media_id, or size_bytes + mime.
+    /// public url, an existing media_id, or size_bytes + mime. The body carries
+    /// <c>file</c> (<c>size_bytes</c>, <c>mime</c>, <c>size_known</c>,
+    /// <c>width</c>, <c>height</c>; the pixel size is known for library images,
+    /// null otherwise), <c>connected_platforms</c>, <c>compatible</c>,
+    /// <c>warnings</c>, <c>summary</c> and <c>fit</c>: one entry per connected
+    /// channel with a fit rule for an IMAGE as a feed post (<c>platform</c>,
+    /// <c>display_name</c>, <c>fits</c>, <c>ratio</c>, <c>shown</c> = whole |
+    /// cut, <c>target</c>, <c>default_action</c> = crop | keep | null,
+    /// <c>message</c>). <c>fits: false</c> = the ratio is outside the window the
+    /// channel shows uncropped; <c>default_action</c> is what a post create does
+    /// unless the post's <c>media_fit</c> says otherwise. Empty for videos and
+    /// unknown sizes.
     /// </summary>
     public Task<JsonElement?> CheckAsync(MediaCheckParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/media/check", parameters, cancellationToken);
