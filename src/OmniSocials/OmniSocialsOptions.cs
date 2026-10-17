@@ -4,7 +4,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsOptions
 {
     /// <summary>
-    /// API key (<c>omsk_live_*</c> / <c>omsk_test_*</c>). Defaults to the
+    /// API key (<c>omsk_live_*</c>). Defaults to the
     /// <c>OMNISOCIALS_API_KEY</c> environment variable. Create a key in the
     /// OmniSocials app under Settings -> API Keys.
     /// </summary>

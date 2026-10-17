@@ -1,6 +1,6 @@
 # OmniSocials .NET SDK
 
-The official .NET client for the [OmniSocials API](https://docs.omnisocials.com). Schedule and publish posts to Instagram, Facebook, LinkedIn, YouTube, TikTok, X, Pinterest, Bluesky, Threads, Mastodon, and Google Business from one API.
+The official .NET (C#) SDK for OmniSocials: post, schedule, reply and report on 11 social platforms (Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Pinterest, Bluesky, Mastodon and Google Business) from one API. Guide: [omnisocials.com/sdk/dotnet](https://omnisocials.com/sdk/dotnet)
 
 - Targets .NET 8, no dependencies beyond `System.Net.Http` and `System.Text.Json`
 - Fully async API with `CancellationToken` support on every call
@@ -29,7 +29,7 @@ var post = await client.Posts.CreateAsync(new PostCreateParams
 
 ## Authentication
 
-Create an API key in the OmniSocials app under **Settings -> API Keys**. Keys look like `omsk_live_...` (or `omsk_test_...`).
+Create an API key in the OmniSocials app under **Settings -> API Keys**. Keys start with `omsk_live_`. There are no test keys and no test mode: every key works on your real connected accounts. To try things safely, leave out `ScheduledAt` so the post stays a draft (a draft never publishes on its own), or use a separate workspace with test accounts.
 
 The client reads `OMNISOCIALS_API_KEY` from the environment, or you can pass it explicitly:
 
@@ -104,6 +104,8 @@ await client.Posts.CreateAsync(new PostCreateParams
 
 ### Planned drafts
 
+> **Not yet released (coming in 0.10.0).** This section describes the next SDK release. The current release is 0.9.0.
+
 Set `Draft = true` with `ScheduledAt` to store the post as a draft that keeps its time. It shows on the dashboard calendar at that slot with a dashed outline and the scheduler never publishes it: a person schedules it from the composer, or you do with `UpdateAsync` and `Draft = false`. Use it when an agent proposes a slot that a human should confirm. A draft is not allowed with `publish_now` or `ApprovalWorkflowId` (`400 validation_error`). On `UpdateAsync`, `Draft = false` without `ScheduledAt` is a `400 validation_error` when the draft has no time or its time is in the past (pass a new `ScheduledAt` then), and `Draft = true` on a scheduled post unschedules it while keeping the time.
 
 ```csharp
@@ -121,6 +123,8 @@ await client.Posts.UpdateAsync(proposal.GetProperty("id").GetString()!, new Post
 ```
 
 ### Comment-to-DM automations
+
+> **Not yet released (coming in 0.10.0).** This section describes the next SDK release. The current release is 0.9.0.
 
 Answer a keyword in an Instagram comment with a DM, once per person, with an optional public reply under the comment. Set `CommentDmAutomation` on `CreateAsync` (Instagram must be in `Channels`) and the automation is bound to that post; it starts listening once the post is live. Needs the opt-in `automations:write` scope on the key. `client.Automations` manages the automations themselves (`ListAsync`, `GetAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) and reads their activity (`ListEventsAsync`, `automations:read`). On `UpdateAsync`, `CommentDmAutomation` replaces the post's automation and `RemoveCommentDmAutomation = true` removes it (it sends the explicit `null` the null-omitting serializer would otherwise drop). Instagram rules: one private reply per comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per account.
 
@@ -198,6 +202,44 @@ await client.Posts.CreateAsync(new PostCreateParams
     Instagram = new Dictionary<string, object?> { ["share_to_feed"] = true },
     Youtube = new Dictionary<string, object?> { ["title"] = "Summer shoot BTS", ["privacy"] = "public" },
     X = new Dictionary<string, object?> { ["reply_settings"] = "following", ["made_with_ai"] = false },
+});
+```
+
+### Telegram channels and groups
+
+> **Not yet released.** Telegram comes with the next SDK release.
+
+`telegram` is a channel or group the workspace connected in OmniSocials; the OmniSocials bot posts to it. The `telegram` options: `silent`, `link_preview`, `pin`, `protect_content`, `spoiler` and `caption_above_media` (booleans), up to 3 `buttons` (`{ text, url }`, not on an album or a poll), a native `poll` (2 to 12 options of up to 100 characters, `open_period` 5 to 2628000 seconds, `multiple`; the post text is the question, max 300 characters, no media) and `first_comment` (a reply under the post). Text up to 4,096 characters; with media, text over 1,024 characters is sent as a reply under the media. Albums hold up to 10 photos and videos, files up to 50 MB, no Stories. Once sent, the post's `telegram.result` carries the message ids and the link. Telegram gives bots no view counts: analytics carry the reactions and the poll votes.
+
+```csharp
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "The new collection is live. Tap the button to shop.",
+    Channels = new[] { "telegram" },
+    ScheduledAt = "2026-11-02T09:00:00Z",
+    MediaUrls = new[] { "https://example.com/collection.jpg" },
+    Telegram = new Dictionary<string, object?>
+    {
+        ["silent"] = true,
+        ["pin"] = true,
+        ["buttons"] = new[] { new Dictionary<string, object?> { ["text"] = "Shop now", ["url"] = "https://example.com/shop" } },
+        ["first_comment"] = "Questions? Reply to this message.",
+    },
+});
+
+// A native poll: the text is the question.
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Which day suits the live Q&A?",
+    Channels = new[] { "telegram" },
+    Telegram = new Dictionary<string, object?>
+    {
+        ["poll"] = new Dictionary<string, object?>
+        {
+            ["options"] = new[] { "Tuesday", "Thursday", "Saturday" },
+            ["open_period"] = 86400,
+        },
+    },
 });
 ```
 
@@ -530,12 +572,18 @@ var accountStats = await client.Analytics.AccountsAsync(new AccountAnalyticsPara
 
 ### Best times to post
 
+The response is not wrapped in `data`. `platform`, `timezone`, `basis`, `grid` and `recommendations` sit at the top level.
+
 ```csharp
 var best = await client.Analytics.BestTimesAsync(new BestTimesParams
 {
     Platform = "instagram",
     Timezone = "Europe/Amsterdam",
 });
+foreach (var slot in best!.Value.GetProperty("recommendations").EnumerateArray())
+{
+    Console.WriteLine($"{slot.GetProperty("day")} {slot.GetProperty("time")}");
+}
 ```
 
 ## Locations (Instagram and Threads place tagging)
@@ -869,7 +917,7 @@ catch (ApiException ex)
 
 ## API scopes
 
-Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
+Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations (not yet released in the SDK, coming in 0.10.0). A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
 
 ## Documentation
 

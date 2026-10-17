@@ -13,14 +13,14 @@
 
   <PropertyGroup>
     <PackageId>OmniSocials</PackageId>
-    <Version>0.10.0</Version>
+    <Version>0.11.0</Version>
     <Authors>OmniSocials</Authors>
     <Company>OmniSocials</Company>
     <Description>Official .NET client for the OmniSocials API. Schedule and publish posts to Instagram, Facebook, LinkedIn, YouTube, TikTok, X, Pinterest, Bluesky, Threads, Mastodon, and Google Business from one API. Includes automatic retries, rich error types, and webhook signature verification.</Description>
     <PackageTags>omnisocials;social-media;api;sdk;instagram;facebook;linkedin;youtube;tiktok;x;twitter;pinterest;bluesky;threads;mastodon;scheduler</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/OmniSocials</RepositoryUrl>
-    <PackageProjectUrl>https://docs.omnisocials.com</PackageProjectUrl>
+    <PackageProjectUrl>https://omnisocials.com/sdk/dotnet</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

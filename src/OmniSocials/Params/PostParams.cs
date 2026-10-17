@@ -238,6 +238,21 @@ public class PostCreateParams
     public Dictionary<string, object?>? GoogleBusiness { get; set; }
 
     /// <summary>
+    /// Telegram options (the connected channel or group, posted by the
+    /// OmniSocials bot): <c>silent</c>, <c>link_preview</c>, <c>pin</c>,
+    /// <c>protect_content</c>, <c>spoiler</c>, <c>caption_above_media</c>
+    /// (booleans), up to 3 <c>buttons</c> (<c>{ text, url }</c>, not on an
+    /// album or a poll), a native <c>poll</c> (<c>{ options, open_period?,
+    /// multiple? }</c>: 2 to 12 options of up to 100 chars, 5 to 2628000
+    /// seconds; the post text is the question, max 300 chars, no media) and
+    /// <c>first_comment</c> (a reply under the post). Text up to 4,096 chars;
+    /// with media, text over 1,024 chars is sent as a reply under the media.
+    /// No Stories.
+    /// </summary>
+    [JsonPropertyName("telegram")]
+    public Dictionary<string, object?>? Telegram { get; set; }
+
+    /// <summary>
     /// Non-sponsored LinkedIn poll: <c>question</c> (max 140 chars), <c>options</c>
     /// (2-4 entries, each max 30 chars), and <c>duration</c> ("ONE_DAY",
     /// "THREE_DAYS", "SEVEN_DAYS", or "FOURTEEN_DAYS"). Mutually exclusive with
@@ -382,6 +397,14 @@ public class PostUpdateParams
 
     [JsonPropertyName("google_business")]
     public Dictionary<string, object?>? GoogleBusiness { get; set; }
+
+    /// <summary>
+    /// Telegram options (see <see cref="PostCreateParams.Telegram"/> for the
+    /// keys). Every key merges into the stored options; a key set to
+    /// <c>null</c> removes it (for example <c>["poll"] = null</c>).
+    /// </summary>
+    [JsonPropertyName("telegram")]
+    public Dictionary<string, object?>? Telegram { get; set; }
 
     /// <summary>
     /// Non-sponsored LinkedIn poll (see <see cref="PostCreateParams.LinkedinPoll"/>
