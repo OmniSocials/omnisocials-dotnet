@@ -98,17 +98,26 @@ public sealed class PostsResource
     /// comment-to-DM automation and
     /// <see cref="PostUpdateParams.RemoveCommentDmAutomation"/> removes it
     /// (needs the <c>automations:write</c> scope); omit both to leave it.
+    /// <see cref="PostUpdateParams.Discord"/> merges into the stored Discord
+    /// options and <see cref="PostUpdateParams.RemoveDiscord"/> removes them all.
     /// </summary>
     public Task<JsonElement?> UpdateAsync(string id, PostUpdateParams parameters, CancellationToken cancellationToken = default)
     {
         object body = parameters;
-        if (parameters.RemoveCommentDmAutomation)
+        if (parameters.RemoveCommentDmAutomation || parameters.RemoveDiscord)
         {
             // Built by hand: an explicit null comment_dm_automation
-            // (RemoveCommentDmAutomation) must survive serialization, while
-            // unset fields are omitted.
+            // (RemoveCommentDmAutomation) or discord (RemoveDiscord) must
+            // survive serialization, while unset fields are omitted.
             var node = JsonSerializer.SerializeToNode(parameters, OmniSocialsClient.SerializerOptions)!.AsObject();
-            node["comment_dm_automation"] = null;
+            if (parameters.RemoveCommentDmAutomation)
+            {
+                node["comment_dm_automation"] = null;
+            }
+            if (parameters.RemoveDiscord)
+            {
+                node["discord"] = null;
+            }
             body = node;
         }
         return _client.PatchAsync($"/posts/{Uri.EscapeDataString(id)}", body, cancellationToken);

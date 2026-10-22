@@ -54,6 +54,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Discord_update_keeps_explicit_nulls()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\"}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"1\"}}");
+        using var client = CreateClient(handler);
+
+        // A key set to null removes that Discord option.
+        await client.Posts.UpdateAsync("1", new PostUpdateParams
+        {
+            Discord = new Dictionary<string, object?> { ["poll"] = null, ["silent"] = true },
+        });
+        var merge = Parse(handler.RequestBodies[0]!);
+        Assert.Equal(JsonValueKind.Null, merge.GetProperty("discord").GetProperty("poll").ValueKind);
+        Assert.True(merge.GetProperty("discord").GetProperty("silent").GetBoolean());
+
+        // RemoveDiscord sends "discord": null, which removes every option.
+        await client.Posts.UpdateAsync("1", new PostUpdateParams { RemoveDiscord = true });
+        var remove = Parse(handler.RequestBodies[1]!);
+        Assert.Equal(JsonValueKind.Null, remove.GetProperty("discord").ValueKind);
+        Assert.False(remove.TryGetProperty("comment_dm_automation", out _));
+        Assert.False(remove.TryGetProperty("RemoveDiscord", out _));
+    }
+
+    [Fact]
     public async Task Media_fit_is_sent_as_a_per_channel_map()
     {
         var handler = new StubHttpMessageHandler();
@@ -341,6 +366,7 @@ public class SerializationTests
         Assert.Equal(JsonValueKind.Null, update.GetProperty("comment_dm_automation").ValueKind);
         Assert.False(update.TryGetProperty("content", out _));
         Assert.False(update.TryGetProperty("RemoveCommentDmAutomation", out _));
+        Assert.False(update.TryGetProperty("discord", out _));
 
         // The events response is not the plain list: counts sit next to data.
         var events = await client.Automations.ListEventsAsync("100000004", new AutomationEventListParams { Outcome = "sent", Limit = 25 });
@@ -348,6 +374,34 @@ public class SerializationTests
             handler.Requests[2].RequestUri!.OriginalString);
         Assert.Equal(12, events!.Value.GetProperty("counts").GetProperty("sent").GetInt32());
         Assert.Equal(15, events.Value.GetProperty("pagination").GetProperty("total").GetInt32());
+    }
+
+    [Fact]
+    public async Task Facebook_automation_sends_platform_and_post_id_and_list_filters_on_platform()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":[]}");
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":{\"id\":\"100000005\",\"platform\":\"facebook\",\"instagram_media_id\":null,\"facebook_post_id\":\"111_222\"}}");
+        using var client = CreateClient(handler);
+
+        await client.Automations.ListAsync(new AutomationListParams { Platform = "facebook" });
+        Assert.Equal("https://api.test.local/v1/automations?platform=facebook",
+            handler.Requests[0].RequestUri!.OriginalString);
+
+        var created = await client.Automations.CreateAsync(new AutomationCreateParams
+        {
+            Platform = "facebook",
+            FacebookPostId = "111_222",
+            Trigger = new Dictionary<string, object?> { ["keywords"] = new[] { "guide" } },
+            Actions = new Dictionary<string, object?> { ["dm"] = new { text = "Here is the guide" } },
+        });
+
+        var body = Parse(handler.RequestBodies[1]!);
+        Assert.Equal("facebook", body.GetProperty("platform").GetString());
+        Assert.Equal("111_222", body.GetProperty("facebook_post_id").GetString());
+        Assert.False(body.TryGetProperty("instagram_media_id", out _));
+        Assert.Equal("111_222", created!.Value.GetProperty("data").GetProperty("facebook_post_id").GetString());
     }
 
     [Fact]

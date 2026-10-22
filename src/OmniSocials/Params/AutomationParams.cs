@@ -8,7 +8,10 @@ public sealed class AutomationListParams
     /// <summary>"active", "paused" or "completed".</summary>
     public string? Status { get; set; }
 
-    /// <summary>Only the automation bound to this OmniSocials post.</summary>
+    /// <summary>"instagram" or "facebook": only that channel's automations.</summary>
+    public string? Platform { get; set; }
+
+    /// <summary>Only the automations bound to this OmniSocials post.</summary>
     public string? PostId { get; set; }
 }
 
@@ -28,27 +31,48 @@ public sealed class AutomationEventListParams
 /// <summary>Body for <c>POST /automations</c>. Null properties are omitted.</summary>
 public class AutomationCreateParams
 {
+    /// <summary>
+    /// "instagram" (default) or "facebook" (a Facebook Page; the DM lands in
+    /// Messenger). <see cref="FacebookPostId"/> implies "facebook". Facebook has
+    /// no story replies: "story_reply" in the trigger kinds is a
+    /// <c>400 validation_error</c>.
+    /// </summary>
+    [JsonPropertyName("platform")]
+    public string? Platform { get; set; }
+
     /// <summary>Name, max 120 characters.</summary>
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
     /// <summary>
-    /// For scope "post": an OmniSocials post that goes to Instagram (scheduled
-    /// or live). One automation per post. Set <see cref="PostId"/> OR
-    /// <see cref="InstagramMediaId"/>, not both.
+    /// For scope "post": an OmniSocials post that goes to the automation's
+    /// channel (scheduled or live). One automation per post and platform: a
+    /// post that goes to Instagram and Facebook can have one of each. Set at
+    /// most one of <see cref="PostId"/>, <see cref="InstagramMediaId"/> and
+    /// <see cref="FacebookPostId"/>.
     /// </summary>
     [JsonPropertyName("post_id")]
     public string? PostId { get; set; }
 
-    /// <summary>For scope "post": a post published outside OmniSocials (numeric Instagram media id).</summary>
+    /// <summary>For scope "post": an Instagram post published outside OmniSocials (numeric Instagram media id).</summary>
     [JsonPropertyName("instagram_media_id")]
     public string? InstagramMediaId { get; set; }
 
     /// <summary>
+    /// For scope "post": a post published on the Facebook Page outside
+    /// OmniSocials, as "{page-id}_{post-id}" or the post id alone (the Page id
+    /// is put in front). Implies <see cref="Platform"/> "facebook". A post of
+    /// another Page is a <c>404 facebook_post_not_found</c>.
+    /// </summary>
+    [JsonPropertyName("facebook_post_id")]
+    public string? FacebookPostId { get; set; }
+
+    /// <summary>
     /// <c>{ ["kinds"] = new[] { "comment" }, ["scope"] = "post", ["keywords"] = new[] { "guide" }, ["match"] = "word" }</c>:
     /// <c>kinds</c> one or more of "comment", "dm", "story_reply" (default
-    /// ["comment"]); <c>scope</c> "post" (default), "next_post" (the next
-    /// Instagram post the workspace publishes) or "any" (every post);
+    /// ["comment"]; a Facebook Page has "comment" and "dm" only);
+    /// <c>scope</c> "post" (default), "next_post" (the next post the
+    /// workspace publishes on the automation's channel) or "any" (every post);
     /// <c>keywords</c> up to 20 of 60 characters, required unless
     /// <c>match</c> is "any"; <c>match</c> "word" (default), "contains" or
     /// "any".
@@ -79,6 +103,15 @@ public class AutomationCreateParams
 /// </summary>
 public class AutomationUpdateParams
 {
+    /// <summary>
+    /// The platform cannot change: another platform (or
+    /// <see cref="InstagramMediaId"/> on a Facebook automation,
+    /// <see cref="FacebookPostId"/> on an Instagram one) is a
+    /// <c>400 platform_immutable</c>.
+    /// </summary>
+    [JsonPropertyName("platform")]
+    public string? Platform { get; set; }
+
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
@@ -86,9 +119,13 @@ public class AutomationUpdateParams
     [JsonPropertyName("post_id")]
     public string? PostId { get; set; }
 
-    /// <summary>Moves the automation to that Instagram post.</summary>
+    /// <summary>Moves an Instagram automation to that Instagram post.</summary>
     [JsonPropertyName("instagram_media_id")]
     public string? InstagramMediaId { get; set; }
+
+    /// <summary>Moves a Facebook automation to that Facebook Page post.</summary>
+    [JsonPropertyName("facebook_post_id")]
+    public string? FacebookPostId { get; set; }
 
     /// <summary>
     /// Merged into the stored trigger (see <see cref="AutomationCreateParams.Trigger"/>):

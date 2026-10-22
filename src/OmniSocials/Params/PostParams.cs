@@ -147,16 +147,20 @@ public class PostCreateParams
     public Dictionary<string, string>? MediaFit { get; set; }
 
     /// <summary>
-    /// Comment-to-DM automation bound to this post (Instagram must be in
+    /// Comment-to-DM automation bound to this post (Instagram or Facebook must be in
     /// <see cref="Channels"/>): a keyword in a comment is answered with a DM, once
     /// per person, with an optional public reply under the comment.
-    /// <c>{ ["trigger"] = new { keywords = new[] { "guide" }, match = "word" }, ["actions"] = new { dm = new { text = "..." }, public_reply = new { enabled = true, variations = new[] { "..." } } }, ["limits"] = new { max_sends = 500 } }</c>
-    /// (see <see cref="AutomationCreateParams"/> for the fields). Needs the
+    /// <c>{ ["trigger"] = new { keywords = new[] { "guide" }, match = "word" }, ["actions"] = new { dm = new { text = "..." }, public_reply = new { enabled = true, variations = new[] { "..." } } }, ["limits"] = new { max_sends = 500 }, ["platforms"] = new[] { "instagram", "facebook" } }</c>
+    /// (see <see cref="AutomationCreateParams"/> for the fields). <c>platforms</c> makes
+    /// one automation per listed channel; each must be a channel of the post. Without
+    /// it: Instagram when the post goes there, else Facebook. Needs the
     /// <c>automations:write</c> scope on the key (<c>403 insufficient_scope</c>, checked
     /// before anything else); a bad object is a <c>400 validation_error</c> whose message
     /// starts with <c>comment_dm_automation: </c>. The response then carries
-    /// <c>data.comment_dm_automation</c> (the automation, with <c>post</c> null); it starts
-    /// listening once the post is live on Instagram.
+    /// <c>data.comment_dm_automation</c> (the first automation, with <c>post</c> null,
+    /// plus <c>platforms</c> and <c>automations</c>, one <c>id</c> / <c>platform</c> /
+    /// <c>status</c> per channel); each starts listening once the post is live on its
+    /// channel.
     /// </summary>
     [JsonPropertyName("comment_dm_automation")]
     public Dictionary<string, object?>? CommentDmAutomation { get; set; }
@@ -253,6 +257,25 @@ public class PostCreateParams
     public Dictionary<string, object?>? Telegram { get; set; }
 
     /// <summary>
+    /// Discord options (one Discord channel, posted through its incoming
+    /// webhook with the webhook's name and picture): <c>silent</c>,
+    /// <c>link_preview</c> (default on), <c>allow_mentions</c> (default off:
+    /// @everyone, @here, role and user mentions show as text and ping nobody),
+    /// <c>spoiler</c> (booleans), <c>thread_name</c> (the post title in a forum
+    /// or media channel, 1 to 100 chars; on a text channel the post goes out
+    /// without it), up to 5
+    /// <c>buttons</c> (<c>{ text, url }</c>: 1 to 80 chars, https:// or
+    /// http://, one row, not with a poll) and a native <c>poll</c>
+    /// (<c>{ options, duration_hours?, multiple? }</c>: 2 to 10 options of up
+    /// to 55 chars, 1 to 768 hours, default 24; the post text is the question,
+    /// max 300 chars, no media and no buttons). Text up to 2,000 chars; up to
+    /// 10 images, GIFs and videos per message, a video or GIF over 20 MB is
+    /// sent as a link in the text. No Stories.
+    /// </summary>
+    [JsonPropertyName("discord")]
+    public Dictionary<string, object?>? Discord { get; set; }
+
+    /// <summary>
     /// Non-sponsored LinkedIn poll: <c>question</c> (max 140 chars), <c>options</c>
     /// (2-4 entries, each max 30 chars), and <c>duration</c> ("ONE_DAY",
     /// "THREE_DAYS", "SEVEN_DAYS", or "FOURTEEN_DAYS"). Mutually exclusive with
@@ -310,9 +333,10 @@ public class PostUpdateParams
     public Dictionary<string, string>? MediaFit { get; set; }
 
     /// <summary>
-    /// Replaces the post's comment-to-DM automation (same shape as
-    /// <see cref="PostCreateParams.CommentDmAutomation"/>). Omit to leave it untouched;
-    /// to remove it set <see cref="RemoveCommentDmAutomation"/>. Needs the
+    /// Replaces the post's comment-to-DM automations (same shape as
+    /// <see cref="PostCreateParams.CommentDmAutomation"/>; a channel no longer in
+    /// <c>platforms</c> loses its automation). Omit to leave them untouched; to remove
+    /// them all set <see cref="RemoveCommentDmAutomation"/>. Needs the
     /// <c>automations:write</c> scope.
     /// </summary>
     [JsonPropertyName("comment_dm_automation")]
@@ -405,6 +429,23 @@ public class PostUpdateParams
     /// </summary>
     [JsonPropertyName("telegram")]
     public Dictionary<string, object?>? Telegram { get; set; }
+
+    /// <summary>
+    /// Discord options (see <see cref="PostCreateParams.Discord"/> for the
+    /// keys). Every key merges into the stored options; a key set to
+    /// <c>null</c> removes it (for example <c>["poll"] = null</c>). To remove
+    /// every Discord option set <see cref="RemoveDiscord"/>.
+    /// </summary>
+    [JsonPropertyName("discord")]
+    public Dictionary<string, object?>? Discord { get; set; }
+
+    /// <summary>
+    /// When true, sends an explicit <c>"discord": null</c> to remove every
+    /// Discord option of the post (the publish result stays). Takes
+    /// precedence over <see cref="Discord"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool RemoveDiscord { get; set; }
 
     /// <summary>
     /// Non-sponsored LinkedIn poll (see <see cref="PostCreateParams.LinkedinPoll"/>

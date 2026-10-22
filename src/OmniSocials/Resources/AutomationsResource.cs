@@ -6,9 +6,11 @@ namespace OmniSocials;
 /// <summary>
 /// Comment-to-DM automations. An automation answers a keyword in an Instagram
 /// comment (or a DM, or a story reply) with a DM, once per person, with an
-/// optional public reply under the comment. Instagram rules: one private reply
-/// per comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per
-/// account. The scopes are opt-in on the API key: <c>automations:read</c> for
+/// optional public reply under the comment. With <c>Platform = "facebook"</c>
+/// it runs on a Facebook Page instead, and the DM lands in Messenger (a Page
+/// has no story replies). Meta rules, the same on both: one private reply per
+/// comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per
+/// account and platform. The scopes are opt-in on the API key: <c>automations:read</c> for
 /// list / get / events, <c>automations:write</c> for create / update / delete
 /// (and for <see cref="PostCreateParams.CommentDmAutomation"/>).
 /// </summary>
@@ -20,15 +22,17 @@ public sealed class AutomationsResource
 
     /// <summary>
     /// <c>GET /automations</c>: list the workspace's comment-to-DM automations,
-    /// optionally by <see cref="AutomationListParams.Status"/> or by the
-    /// OmniSocials <see cref="AutomationListParams.PostId"/> they are bound to.
-    /// Requires the <c>automations:read</c> scope (opt-in on the API key).
+    /// optionally by <see cref="AutomationListParams.Status"/>, by
+    /// <see cref="AutomationListParams.Platform"/> or by the OmniSocials
+    /// <see cref="AutomationListParams.PostId"/> they are bound to. Requires the
+    /// <c>automations:read</c> scope (opt-in on the API key).
     /// </summary>
     public Task<JsonElement?> ListAsync(AutomationListParams? parameters = null, CancellationToken cancellationToken = default)
     {
         var queryParams = new List<KeyValuePair<string, string?>>
         {
             new("status", parameters?.Status),
+            new("platform", parameters?.Platform),
             new("post_id", parameters?.PostId),
         };
         return _client.GetAsync("/automations", queryParams, cancellationToken);
@@ -39,18 +43,24 @@ public sealed class AutomationsResource
         => _client.GetAsync($"/automations/{Uri.EscapeDataString(id)}", null, cancellationToken);
 
     /// <summary>
-    /// <c>POST /automations</c>: create a comment-to-DM automation. Bind it to
-    /// one post with <see cref="AutomationCreateParams.PostId"/> (an OmniSocials
-    /// post that goes to Instagram, scheduled or live; one automation per post)
-    /// or <see cref="AutomationCreateParams.InstagramMediaId"/> (a post
-    /// published outside OmniSocials), not both; a trigger with scope
-    /// "next_post" or "any" needs neither.
+    /// <c>POST /automations</c>: create a comment-to-DM automation.
+    /// <see cref="AutomationCreateParams.Platform"/> "facebook" runs it on a
+    /// Facebook Page (the DM lands in Messenger). Bind it to one post with
+    /// <see cref="AutomationCreateParams.PostId"/> (an OmniSocials post that
+    /// goes to the channel, scheduled or live; one automation per post and
+    /// platform), <see cref="AutomationCreateParams.InstagramMediaId"/> (an
+    /// Instagram post published outside OmniSocials) or
+    /// <see cref="AutomationCreateParams.FacebookPostId"/> (a Page post
+    /// published outside OmniSocials; implies "facebook"), at most one; a
+    /// trigger with scope "next_post" or "any" needs none.
     /// <see cref="AutomationCreateParams.Actions"/> is required. Requires the
     /// <c>automations:write</c> scope (opt-in on the API key). Errors:
     /// <c>400 validation_error</c>, <c>400 post_not_instagram</c>,
-    /// <c>400 post_required</c>, <c>404 post_not_found</c>,
-    /// <c>404 instagram_media_not_found</c>, <c>409 instagram_not_connected</c>,
-    /// <c>409 instagram_needs_reauth</c>, <c>409 automation_exists</c> (the
+    /// <c>400 post_not_facebook</c>, <c>400 post_required</c>,
+    /// <c>404 post_not_found</c>, <c>404 instagram_media_not_found</c>,
+    /// <c>404 facebook_post_not_found</c>, <c>409 instagram_not_connected</c>,
+    /// <c>409 instagram_needs_reauth</c>, <c>409 facebook_not_connected</c>,
+    /// <c>409 facebook_needs_reauth</c>, <c>409 automation_exists</c> (the
     /// error body also carries <c>automation_id</c>).
     /// </summary>
     public Task<JsonElement?> CreateAsync(AutomationCreateParams parameters, CancellationToken cancellationToken = default)
@@ -65,10 +75,12 @@ public sealed class AutomationsResource
     /// <c>public_reply.enabled = false</c> or <c>variations = []</c> turns the
     /// public reply off; <c>["max_sends"] = null</c> removes that limit.
     /// <c>Status = "paused"</c> pauses and <c>"active"</c> resumes; another
-    /// <c>PostId</c> / <c>InstagramMediaId</c> moves the automation to that
-    /// post. A <c>completed</c> automation starts again when its limits or
-    /// trigger change. Requires the <c>automations:write</c> scope.
-    /// <c>400 no_fields</c> when the body is empty.
+    /// <c>PostId</c> / <c>InstagramMediaId</c> / <c>FacebookPostId</c> moves the
+    /// automation to that post. The platform cannot change
+    /// (<c>400 platform_immutable</c>). A <c>completed</c> automation starts
+    /// again when its limits or trigger change. Requires the
+    /// <c>automations:write</c> scope. <c>400 no_fields</c> when the body is
+    /// empty.
     /// </summary>
     public Task<JsonElement?> UpdateAsync(string id, AutomationUpdateParams parameters, CancellationToken cancellationToken = default)
         => _client.PatchAsync($"/automations/{Uri.EscapeDataString(id)}", parameters, cancellationToken);
@@ -89,7 +101,8 @@ public sealed class AutomationsResource
     /// where <c>counts</c> is the number of events per outcome (an outcome with
     /// no events is left out). Each event carries <c>kind</c> ("comment",
     /// "dm", "story_reply"), <c>outcome</c>, <c>reason</c> /
-    /// <c>reason_label</c>, <c>person</c> (<c>id</c>, <c>username</c>),
+    /// <c>reason_label</c>, <c>person</c> (<c>id</c>, <c>username</c>; on
+    /// Facebook the person's name, since Facebook has no @handle),
     /// <c>trigger_id</c>, <c>trigger_text</c>, <c>message</c> (the DM sent),
     /// <c>public_reply</c>, <c>platform_message_id</c>, <c>created_at</c> and
     /// <c>sent_at</c>.

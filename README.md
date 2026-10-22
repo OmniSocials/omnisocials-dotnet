@@ -1,6 +1,6 @@
 # OmniSocials .NET SDK
 
-The official .NET (C#) SDK for OmniSocials: post, schedule, reply and report on 12 social platforms (Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Pinterest, Bluesky, Mastodon, Google Business and Telegram) from one API. Guide: [omnisocials.com/sdk/dotnet](https://omnisocials.com/sdk/dotnet)
+The official .NET (C#) SDK for OmniSocials: post, schedule, reply and report on 13 social platforms (Instagram, Facebook, LinkedIn, X, TikTok, YouTube, Threads, Pinterest, Bluesky, Mastodon, Google Business, Telegram and Discord) from one API. Guide: [omnisocials.com/sdk/dotnet](https://omnisocials.com/sdk/dotnet)
 
 - Targets .NET 8, no dependencies beyond `System.Net.Http` and `System.Text.Json`
 - Fully async API with `CancellationToken` support on every call
@@ -155,6 +155,8 @@ foreach (var item in events.GetProperty("data").EnumerateArray())
 
 The events response is `data`, `counts` and `pagination`, not the plain list: `counts` is the number of events per outcome (`sent`, `skipped`, `failed`, `pending`). An automation can also listen on a post published outside OmniSocials (`client.Automations.CreateAsync` with `InstagramMediaId`), on the next post the workspace publishes (`Trigger` with `["scope"] = "next_post"`) or on every post (`"any"`), and on DMs and story replies (`["kinds"] = new[] { "dm", "story_reply" }`).
 
+A Facebook Page works the same way, and the DM lands in Messenger: set `Platform = "facebook"` on `AutomationCreateParams`, or `FacebookPostId` for a Page post published outside OmniSocials. On a post, `["platforms"] = new[] { "instagram", "facebook" }` in `CommentDmAutomation` makes one automation per channel with the same keywords and DM. Facebook has no story replies.
+
 ### Publish immediately
 
 ```csharp
@@ -236,6 +238,42 @@ await client.Posts.CreateAsync(new PostCreateParams
     },
 });
 ```
+
+### Discord channels
+
+`discord` is one Discord channel the workspace connected in OmniSocials; the post goes out through the channel's incoming webhook and shows the webhook's name and picture. The `discord` options: `silent`, `link_preview` (default on), `allow_mentions` (default off, so @everyone, @here, role and user mentions show as text and ping nobody) and `spoiler` (booleans), `thread_name` (the post title in a forum or media channel, 1 to 100 characters), up to 5 `buttons` (`{ text, url }`, one row, not with a poll) and a native `poll` (2 to 10 options of up to 55 characters, `duration_hours` 1 to 768, default 24, `multiple`; the post text is the question, max 300 characters, no media). Text up to 2,000 characters. Up to 10 images, GIFs and videos per message; a video or GIF over Discord's 20 MB attachment limit is sent as a link in the text. No Stories. Once sent, the post's `discord.result` carries the message id and the link. Discord gives webhooks no view counts: analytics carry the reactions and the poll votes.
+
+```csharp
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Patch 2.4 is out. Read the notes below.",
+    Channels = new[] { "discord" },
+    ScheduledAt = "2026-11-02T09:00:00Z",
+    MediaUrls = new[] { "https://example.com/patch-notes.png" },
+    Discord = new Dictionary<string, object?>
+    {
+        ["silent"] = true,
+        ["buttons"] = new[] { new Dictionary<string, object?> { ["text"] = "Patch notes", ["url"] = "https://example.com/patch-2-4" } },
+    },
+});
+
+// A native poll: the text is the question.
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Which mode do we test next?",
+    Channels = new[] { "discord" },
+    Discord = new Dictionary<string, object?>
+    {
+        ["poll"] = new Dictionary<string, object?>
+        {
+            ["options"] = new[] { "Ranked", "Co-op", "Arena" },
+            ["duration_hours"] = 48,
+        },
+    },
+});
+```
+
+On update, `PostUpdateParams.Discord` merges into the stored options (`["poll"] = null` removes the poll) and `RemoveDiscord = true` removes every Discord option.
 
 ### Chained threads (X, Bluesky, Mastodon, Threads)
 
