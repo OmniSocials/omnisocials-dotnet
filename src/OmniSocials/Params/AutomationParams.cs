@@ -8,7 +8,7 @@ public sealed class AutomationListParams
     /// <summary>"active", "paused" or "completed".</summary>
     public string? Status { get; set; }
 
-    /// <summary>"instagram" or "facebook": only that channel's automations.</summary>
+    /// <summary>"instagram", "facebook" or "x": only that channel's automations.</summary>
     public string? Platform { get; set; }
 
     /// <summary>Only the automations bound to this OmniSocials post.</summary>
@@ -18,7 +18,11 @@ public sealed class AutomationListParams
 /// <summary>Query parameters for <c>GET /automations/:id/events</c>. Every property is optional.</summary>
 public sealed class AutomationEventListParams
 {
-    /// <summary>"sent", "skipped", "failed" or "pending".</summary>
+    /// <summary>
+    /// "sent", "skipped", "failed", "pending", "queued" (the answer waits for a
+    /// free slot under the send cap and goes out within the hour) or
+    /// "opted_out" (the person replied STOP on X).
+    /// </summary>
     public string? Outcome { get; set; }
 
     /// <summary>Events per page, 1 to 100 (default 25).</summary>
@@ -32,10 +36,14 @@ public sealed class AutomationEventListParams
 public class AutomationCreateParams
 {
     /// <summary>
-    /// "instagram" (default) or "facebook" (a Facebook Page; the DM lands in
-    /// Messenger). <see cref="FacebookPostId"/> implies "facebook". Facebook has
+    /// "instagram" (default), "facebook" (a Facebook Page; the DM lands in
+    /// Messenger) or "x" (the X account: trigger kinds ["dm"] only, no post
+    /// fields). <see cref="FacebookPostId"/> implies "facebook". Facebook has
     /// no story replies: "story_reply" in the trigger kinds is a
-    /// <c>400 validation_error</c>.
+    /// <c>400 validation_error</c>. An active X automation needs X DMs on for
+    /// the workspace (<c>409 x_dms_off</c>; <see cref="Status"/> "paused" always
+    /// saves), and every X answer ends with "Reply STOP to stop automatic
+    /// messages.".
     /// </summary>
     [JsonPropertyName("platform")]
     public string? Platform { get; set; }
@@ -70,7 +78,8 @@ public class AutomationCreateParams
     /// <summary>
     /// <c>{ ["kinds"] = new[] { "comment" }, ["scope"] = "post", ["keywords"] = new[] { "guide" }, ["match"] = "word" }</c>:
     /// <c>kinds</c> one or more of "comment", "dm", "story_reply" (default
-    /// ["comment"]; a Facebook Page has "comment" and "dm" only);
+    /// ["comment"]; a Facebook Page has "comment" and "dm" only, X has "dm"
+    /// only);
     /// <c>scope</c> "post" (default), "next_post" (the next post the
     /// workspace publishes on the automation's channel) or "any" (every post);
     /// <c>keywords</c> up to 20 of 60 characters, required unless
@@ -151,7 +160,10 @@ public class AutomationUpdateParams
     [JsonPropertyName("limits")]
     public Dictionary<string, object?>? Limits { get; set; }
 
-    /// <summary>"paused" pauses, "active" resumes.</summary>
+    /// <summary>
+    /// "paused" pauses, "active" resumes (an X automation only while X DMs are
+    /// on for the workspace, else <c>409 x_dms_off</c>).
+    /// </summary>
     [JsonPropertyName("status")]
     public string? Status { get; set; }
 }

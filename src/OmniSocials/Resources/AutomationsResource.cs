@@ -8,9 +8,15 @@ namespace OmniSocials;
 /// comment (or a DM, or a story reply) with a DM, once per person, with an
 /// optional public reply under the comment. With <c>Platform = "facebook"</c>
 /// it runs on a Facebook Page instead, and the DM lands in Messenger (a Page
-/// has no story replies). Meta rules, the same on both: one private reply per
-/// comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per
-/// account and platform. The scopes are opt-in on the API key: <c>automations:read</c> for
+/// has no story replies). With <c>Platform = "x"</c> it answers a keyword in a
+/// DM to the X account ("dm" kind only, no post, no public reply) while X DMs
+/// are on for the workspace; every X answer ends with "Reply STOP to stop
+/// automatic messages." and a person who replies STOP gets no automatic DM
+/// again. Meta rules, the same on Instagram and Facebook: one private reply
+/// per comment, within 7 days. OmniSocials caps sends at 180 DMs an hour per
+/// account on Instagram and Facebook, and at 15 per 15 minutes and 450 a day
+/// on X; an answer over a cap waits in a queue ("queued") for up to an hour.
+/// The scopes are opt-in on the API key: <c>automations:read</c> for
 /// list / get / events, <c>automations:write</c> for create / update / delete
 /// (and for <see cref="PostCreateParams.CommentDmAutomation"/>).
 /// </summary>
@@ -45,7 +51,10 @@ public sealed class AutomationsResource
     /// <summary>
     /// <c>POST /automations</c>: create a comment-to-DM automation.
     /// <see cref="AutomationCreateParams.Platform"/> "facebook" runs it on a
-    /// Facebook Page (the DM lands in Messenger). Bind it to one post with
+    /// Facebook Page (the DM lands in Messenger); "x" answers DMs to the X
+    /// account (trigger kinds ["dm"], no post; an active one needs X DMs on,
+    /// else <c>409 x_dms_off</c>, while status "paused" always saves). Bind it
+    /// to one post with
     /// <see cref="AutomationCreateParams.PostId"/> (an OmniSocials post that
     /// goes to the channel, scheduled or live; one automation per post and
     /// platform), <see cref="AutomationCreateParams.InstagramMediaId"/> (an
@@ -60,8 +69,9 @@ public sealed class AutomationsResource
     /// <c>404 post_not_found</c>, <c>404 instagram_media_not_found</c>,
     /// <c>404 facebook_post_not_found</c>, <c>409 instagram_not_connected</c>,
     /// <c>409 instagram_needs_reauth</c>, <c>409 facebook_not_connected</c>,
-    /// <c>409 facebook_needs_reauth</c>, <c>409 automation_exists</c> (the
-    /// error body also carries <c>automation_id</c>).
+    /// <c>409 facebook_needs_reauth</c>, <c>409 x_not_connected</c>,
+    /// <c>409 x_dms_off</c>, <c>409 automation_exists</c> (the error body also
+    /// carries <c>automation_id</c>).
     /// </summary>
     public Task<JsonElement?> CreateAsync(AutomationCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/automations", parameters, cancellationToken);
@@ -77,8 +87,10 @@ public sealed class AutomationsResource
     /// <c>Status = "paused"</c> pauses and <c>"active"</c> resumes; another
     /// <c>PostId</c> / <c>InstagramMediaId</c> / <c>FacebookPostId</c> moves the
     /// automation to that post. The platform cannot change
-    /// (<c>400 platform_immutable</c>). A <c>completed</c> automation starts
-    /// again when its limits or trigger change. Requires the
+    /// (<c>400 platform_immutable</c>). <c>Status = "active"</c> on an X
+    /// automation needs X DMs on for the workspace (<c>409 x_dms_off</c>). A
+    /// <c>completed</c> automation starts again when its limits or trigger
+    /// change. Requires the
     /// <c>automations:write</c> scope. <c>400 no_fields</c> when the body is
     /// empty.
     /// </summary>
@@ -93,7 +105,7 @@ public sealed class AutomationsResource
     /// <c>GET /automations/:id/events</c>: the automation's activity, one event
     /// per person it answered, skipped or failed on. Filter by
     /// <see cref="AutomationEventListParams.Outcome"/> ("sent", "skipped",
-    /// "failed", "pending"); <c>Limit</c> is 1 to 100 (default 25),
+    /// "failed", "pending", "queued", "opted_out"); <c>Limit</c> is 1 to 100 (default 25),
     /// <c>Offset</c> skips. Requires the <c>automations:read</c> scope.
     /// <para>
     /// The response is not the plain list envelope:
@@ -101,7 +113,8 @@ public sealed class AutomationsResource
     /// where <c>counts</c> is the number of events per outcome (an outcome with
     /// no events is left out). Each event carries <c>kind</c> ("comment",
     /// "dm", "story_reply"), <c>outcome</c>, <c>reason</c> /
-    /// <c>reason_label</c>, <c>person</c> (<c>id</c>, <c>username</c>; on
+    /// <c>reason_label</c> (X adds the skip reasons "dms_closed", "no_credits",
+    /// "opted_out" and "automation_off"), <c>person</c> (<c>id</c>, <c>username</c>; on
     /// Facebook the person's name, since Facebook has no @handle),
     /// <c>trigger_id</c>, <c>trigger_text</c>, <c>message</c> (the DM sent),
     /// <c>public_reply</c>, <c>platform_message_id</c>, <c>created_at</c> and

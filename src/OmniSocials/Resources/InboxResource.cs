@@ -91,8 +91,8 @@ public sealed class InboxResource
     /// <see cref="ApiException"/> codes can result (402 has no dedicated
     /// subclass, so check <c>Status</c>/<c>Code</c>): <c>insufficient_credits</c>
     /// (the balance can't cover the 2 credits) and <c>x_inbox_suspended</c>
-    /// (the workspace's X inbox auto-suspended when the balance hit zero - top
-    /// up and re-enable it in the dashboard to resume; DMs that arrive while
+    /// (the workspace's X inbox auto-suspended when the balance hit zero; a
+    /// top-up turns it back on by itself, but DMs that arrive while
     /// suspended are not recovered).
     ///
     /// On comment and mention threads, set
