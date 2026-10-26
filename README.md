@@ -326,6 +326,8 @@ On update, set `["thread_parts"] = null` to clear thread mode (revert to a singl
 
 The `Threads` options also accept `["location_id"]`: a Threads location id from `Locations.SearchAsync` with platform `"threads"` (see [Locations](#locations-instagram-and-threads-place-tagging)). On a multi-part thread the tag is applied to part 1, and on update `["location_id"] = null` clears the tag. Threads location tagging is currently rolling out; until Meta approves the permissions it is disabled on production and calls return a clear error.
 
+The `Threads` options also accept `["topic_tag"]`: the topic of the post on Threads, for example `"Build in public"`. Unlike a #tag in the text, a topic can hold spaces. 1 to 50 characters, no period and no ampersand; a leading `#` is dropped. On a multi-part thread the topic is applied to part 1, and on update `["topic_tag"] = null` removes it.
+
 ### X link posts use credits
 
 X bills API posts whose text contains a URL at a premium, and OmniSocials passes that fee through as prepaid credits (20 credits per URL-containing tweet; threads billed per part with a link). When a create targets X and the text contains a URL, the response carries a top-level `warnings` array (a sibling of `data`):

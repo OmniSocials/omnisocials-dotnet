@@ -233,7 +233,10 @@ public class PostCreateParams
     /// to store display fields along with the id (<c>location_id</c> wins when
     /// both are given). Threads location tagging is currently rolling out;
     /// until Meta approves the permissions it is disabled on production and
-    /// calls return a clear error.
+    /// calls return a clear error. <c>topic_tag</c> sets the topic of the
+    /// post, for example "Build in public" (1 to 50 characters, no period and
+    /// no ampersand; on a multi-part thread it goes on part 1; <c>null</c> on
+    /// update removes it).
     /// </summary>
     [JsonPropertyName("threads")]
     public Dictionary<string, object?>? Threads { get; set; }
@@ -412,9 +415,10 @@ public class PostUpdateParams
     public Dictionary<string, object?>? Mastodon { get; set; }
 
     /// <summary>
-    /// <c>["thread_parts"] = null</c> clears thread mode and
+    /// <c>["thread_parts"] = null</c> clears thread mode,
     /// <c>["location_id"] = null</c> (or <c>["location"] = null</c>) clears the
-    /// Threads location tag; omit a key to leave it untouched.
+    /// Threads location tag and <c>["topic_tag"] = null</c> removes the topic;
+    /// omit a key to leave it untouched.
     /// </summary>
     [JsonPropertyName("threads")]
     public Dictionary<string, object?>? Threads { get; set; }
