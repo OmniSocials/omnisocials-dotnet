@@ -760,6 +760,13 @@ await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
 await client.Inbox.HideAsync(messageId);              // hide
 await client.Inbox.HideAsync(messageId, hide: false); // unhide
 
+// Like (or unlike) a comment as the connected Page or account: Facebook,
+// LinkedIn Page and TikTok comments. The comment comes back with `liked` set
+// (typed: InboxLikeResponse, InboxMessage.Liked).
+var liked = await client.Inbox.LikeAsync(messageId); // like
+await client.Inbox.LikeAsync(messageId, like: false); // unlike
+Console.WriteLine(liked?.Deserialize<InboxLikeResponse>()?.Data.Liked); // True
+
 // Delete a comment outright (Facebook, Instagram, TikTok; YouTube: hide
 // instead). Replies under it go with it; their ids come back as
 // removed_reply_ids.

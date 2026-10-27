@@ -171,6 +171,17 @@ public sealed class InboxMessage
     [JsonPropertyName("hidden")]
     public bool? Hidden { get; set; }
 
+    /// <summary>
+    /// Facebook, LinkedIn Page and TikTok comments: true when the connected
+    /// account liked the comment (see <see cref="InboxResource.LikeAsync"/>),
+    /// false when it did not. On Facebook and LinkedIn it reflects likes made
+    /// through OmniSocials; TikTok also syncs likes made in the TikTok app.
+    /// Null where the platform has no like through OmniSocials (DMs,
+    /// Instagram, YouTube, X, Threads).
+    /// </summary>
+    [JsonPropertyName("liked")]
+    public bool? Liked { get; set; }
+
     /// <summary>Link to the reply or mentioning post on the platform, when known.</summary>
     [JsonPropertyName("permalink")]
     public string? Permalink { get; set; }
@@ -270,6 +281,16 @@ public sealed class InboxHideResponse
     public InboxMessage Data { get; set; } = new();
 }
 
+/// <summary>
+/// Single-item envelope for <c>POST /inbox/messages/:id/like</c>: the comment
+/// after the change, with <see cref="InboxMessage.Liked"/> set.
+/// </summary>
+public sealed class InboxLikeResponse
+{
+    [JsonPropertyName("data")]
+    public InboxMessage Data { get; set; } = new();
+}
+
 /// <summary>The <c>data</c> of <c>DELETE /inbox/messages/:id</c>.</summary>
 public sealed class InboxDeletedMessage
 {
@@ -306,7 +327,8 @@ public sealed class InboxNextUnanswered
     /// <summary>
     /// The unanswered incoming message itself: the customer's latest DM, or
     /// the specific comment. Its <c>id</c> is what
-    /// <see cref="InboxResource.HideAsync"/> and
+    /// <see cref="InboxResource.HideAsync"/>,
+    /// <see cref="InboxResource.LikeAsync"/> and
     /// <see cref="InboxResource.DeleteMessageAsync"/> take, and the
     /// <see cref="InboxReplyParams.MessageId"/> to set on
     /// <see cref="InboxResource.ReplyAsync"/> for comment threads (so the

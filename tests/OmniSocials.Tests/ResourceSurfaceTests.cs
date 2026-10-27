@@ -24,7 +24,7 @@ public class ResourceSurfaceTests
     [InlineData(typeof(PinterestResource), "ListProductsAsync,ValidateProductAsync")]
     [InlineData(typeof(AutomationsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,ListEventsAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
-    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,DeleteMessageAsync,NextAsync")]
+    [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,LikeAsync,DeleteMessageAsync,NextAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
     {
         foreach (var name in expectedMethods.Split(','))

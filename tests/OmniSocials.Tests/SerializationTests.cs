@@ -228,6 +228,27 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Inbox_like_posts_the_like_flag_and_reads_liked()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"123\",\"liked\":true}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"123\",\"liked\":false}}");
+        using var client = CreateClient(handler);
+
+        var liked = await client.Inbox.LikeAsync("123"); // defaults to like: true
+        await client.Inbox.LikeAsync("123", like: false);
+
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal("https://api.test.local/v1/inbox/messages/123/like",
+            handler.Requests[0].RequestUri!.OriginalString);
+        Assert.True(Parse(handler.RequestBodies[0]!).GetProperty("like").GetBoolean());
+        Assert.False(Parse(handler.RequestBodies[1]!).GetProperty("like").GetBoolean());
+
+        var typed = liked!.Value.Deserialize<InboxLikeResponse>();
+        Assert.True(typed!.Data.Liked);
+    }
+
+    [Fact]
     public async Task Inbox_next_builds_the_query_and_delete_message_uses_DELETE()
     {
         var handler = new StubHttpMessageHandler();

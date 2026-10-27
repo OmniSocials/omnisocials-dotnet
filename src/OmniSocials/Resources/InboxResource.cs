@@ -161,6 +161,28 @@ public sealed class InboxResource
         => _client.PostAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}/hide", new { hide }, cancellationToken);
 
     /// <summary>
+    /// <c>POST /inbox/messages/:id/like</c>: like (<paramref name="like"/> true,
+    /// the default) or unlike (false) a comment someone left on one of your
+    /// posts, as the connected Page or account (scope <c>inbox:write</c>).
+    /// Facebook Page, LinkedIn Page and TikTok comments (incoming comments
+    /// only). Facebook allows only Like (no Love or other reactions). Liking
+    /// a comment that is already liked, or unliking one that is not,
+    /// succeeds. The response is <c>{ "data": &lt;message&gt; }</c>, the
+    /// comment after the change, with <c>liked</c> set (see
+    /// <see cref="InboxLikeResponse"/>). Errors: 400
+    /// <c>unsupported_platform</c> (not an incoming Facebook, LinkedIn or
+    /// TikTok comment), 401 <c>reauth_required</c> (the TikTok comments
+    /// authorization is missing or expired, or the LinkedIn Page connection expired), 403 <c>reconnect_required</c>
+    /// (the account was connected without the permission to like comments;
+    /// reconnect it in the dashboard), 404 <c>not_found</c> (message not in
+    /// this workspace) or <c>account_not_connected</c>, 502
+    /// <c>platform_error</c> (the platform rejected the call).
+    /// <paramref name="messageId"/> is URL-encoded for you.
+    /// </summary>
+    public Task<JsonElement?> LikeAsync(string messageId, bool like = true, CancellationToken cancellationToken = default)
+        => _client.PostAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}/like", new { like }, cancellationToken);
+
+    /// <summary>
     /// <c>DELETE /inbox/messages/:id</c>: delete a comment someone left on one
     /// of your posts, on the platform and from the inbox (scope
     /// <c>inbox:write</c>). Facebook, Instagram and TikTok comments only:
@@ -212,8 +234,9 @@ public sealed class InboxResource
     /// <see cref="InboxNextResponse"/>): <c>data</c> is
     /// <c>{ conversation, message, messages, reply_window }</c>, or null when
     /// nothing is waiting; <c>message</c> is the unanswered incoming item
-    /// itself, whose <c>id</c> is what <see cref="HideAsync"/> and
-    /// <see cref="DeleteMessageAsync"/> take and the
+    /// itself, whose <c>id</c> is what <see cref="HideAsync"/>,
+    /// <see cref="LikeAsync"/> and <see cref="DeleteMessageAsync"/> take and
+    /// the
     /// <see cref="InboxReplyParams.MessageId"/> to set on
     /// <see cref="ReplyAsync"/> for comment threads, and whose
     /// <c>conversation_id</c> is what <see cref="ReplyAsync"/> takes;
