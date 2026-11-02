@@ -50,6 +50,10 @@ public sealed class OmniSocialsClient : IDisposable
     public MediaResource Media { get; }
     public FoldersResource Folders { get; }
     public HashtagSetsResource HashtagSets { get; }
+
+    /// <summary>Post tags: the workspace's own labels to filter and compare posts.</summary>
+    public TagsResource Tags { get; }
+
     public ApprovalWorkflowsResource ApprovalWorkflows { get; }
     public AccountsResource Accounts { get; }
     public AnalyticsResource Analytics { get; }
@@ -96,6 +100,7 @@ public sealed class OmniSocialsClient : IDisposable
         Media = new MediaResource(this);
         Folders = new FoldersResource(this);
         HashtagSets = new HashtagSetsResource(this);
+        Tags = new TagsResource(this);
         ApprovalWorkflows = new ApprovalWorkflowsResource(this);
         Accounts = new AccountsResource(this);
         Analytics = new AnalyticsResource(this);

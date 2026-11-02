@@ -18,6 +18,7 @@ public sealed class PostsResource
             new("status", parameters?.Status),
             new("limit", parameters?.Limit?.ToString()),
             new("offset", parameters?.Offset?.ToString()),
+            new("tag", parameters?.Tag),
         };
         return _client.GetAsync("/posts", query, cancellationToken);
     }

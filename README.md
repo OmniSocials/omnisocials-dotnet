@@ -573,6 +573,51 @@ await client.Posts.CreateAsync(new PostCreateParams
 });
 ```
 
+## Post tags
+
+Tags are your workspace's own labels for posts (a hook style, a format), to filter and compare posts in Analytics. They never go to a platform. Uses the `posts:read` / `posts:write` scopes; the comparison uses `analytics:read`.
+
+```csharp
+var tag = await client.Tags.CreateAsync(new TagCreateParams { Name = "Question", Color = "blue" }); // Color optional
+var tagId = tag!.Value.GetProperty("data").GetProperty("id").GetInt64();
+
+await client.Tags.ListAsync();
+await client.Tags.UpdateAsync(tagId, new TagUpdateParams { Name = "Question hook" }); // Name and/or Color
+await client.Tags.DeleteAsync(tagId); // { data: { tag, posts_untagged } }, the posts stay
+
+// Tag up to 500 posts at once, published ones included. Items are tag ids or names;
+// a new name in Add or Set becomes a tag. Set replaces a post's tags.
+var applied = await client.Tags.ApplyAsync(new TagApplyParams
+{
+    PostIds = new[] { "1024", "1025" },
+    Add = new List<object> { "Question" },
+    Remove = new List<object> { tagId },
+});
+var result = applied!.Value.Deserialize<TagApplyResponse>()!.Data; // Updated, Posts, NotFound
+
+// Set tags on a post (ids or names, at most 20). On update an empty list removes them.
+await client.Posts.CreateAsync(new PostCreateParams
+{
+    Content = "Would you post this?",
+    Channels = new[] { "tiktok" },
+    Tags = new List<object> { "Question", "Talking head" },
+});
+await client.Posts.UpdateAsync(postId, new PostUpdateParams { Tags = new List<object> { "Question" } }); // works on published posts too
+
+// Filter by tag (an id or name, comma separated = any of them)
+await client.Posts.ListAsync(new PostListParams { Tag = "Question" });
+await client.Analytics.OverviewAsync(new AnalyticsOverviewParams { Period = "30d", Tag = "Question" });
+
+// How each tag did against your normal (default: the last 90 days)
+var compare = await client.Analytics.TagsAsync(new TagAnalyticsParams { Platform = "tiktok", MinPosts = 5 });
+foreach (var row in compare!.Value.Deserialize<TagAnalyticsResponse>()!.Data.Tags)
+{
+    Console.WriteLine($"{row.Tag.Name}: {row.VsNormal}"); // 0.38 = 38% above normal
+}
+```
+
+Each post carries `tags` (the tag objects) and `trial_reel` (`{ "strategy": "MANUAL" | "SS_PERFORMANCE" }` for an Instagram Trial Reel, else `null`); `Analytics.PostsAsync` items carry both too. `Tag`, `TrialReel`, `TagListResponse`, `TagResponse`, `TagDeleteResponse`, `TagApplyResponse` and `TagAnalyticsResponse` are optional typed models to deserialize into. Error codes: `tag_not_found` (404), `tag_exists` (409, the existing tag is in `error.tag` of `ApiException.Body`), `tag_limit_reached` (409, at most 200 tags per workspace), `invalid_tag_name`, `invalid_tag_color`, `invalid_tags`, `invalid_post_ids`, `too_many_posts`, `too_many_tags` (400).
+
 ## Accounts
 
 ```csharp

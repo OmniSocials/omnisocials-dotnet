@@ -11,6 +11,13 @@ public sealed class AnalyticsOverviewParams
 
     /// <summary>ISO date (YYYY-MM-DD); use with <see cref="StartDate"/> instead of <see cref="Period"/>.</summary>
     public string? EndDate { get; set; }
+
+    /// <summary>
+    /// Post numbers of the posts with this tag only: a tag id or name, comma
+    /// separated for any of several. Account numbers stay those of the whole
+    /// account. An unknown tag answers 404 <c>tag_not_found</c>.
+    /// </summary>
+    public string? Tag { get; set; }
 }
 
 /// <summary>Query parameters for <c>GET /analytics/accounts</c>.</summary>

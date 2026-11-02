@@ -165,6 +165,15 @@ public class PostCreateParams
     [JsonPropertyName("comment_dm_automation")]
     public Dictionary<string, object?>? CommentDmAutomation { get; set; }
 
+    /// <summary>
+    /// The post's tags: tag ids (numbers) or names (strings), at most 20. A name
+    /// that does not exist yet becomes a tag of the workspace. Tags are the
+    /// workspace's own labels to filter and compare posts; nothing goes to a
+    /// platform. See <see cref="TagsResource"/>.
+    /// </summary>
+    [JsonPropertyName("tags")]
+    public IList<object>? Tags { get; set; }
+
     // Platform-specific option blocks. Dictionary values serialize as-is,
     // including explicit nulls (unlike null POCO properties, which are omitted).
 
@@ -353,6 +362,15 @@ public class PostUpdateParams
     [JsonIgnore]
     public bool RemoveCommentDmAutomation { get; set; }
 
+    /// <summary>
+    /// Replaces the post's tags (ids or names; a new name becomes a tag). An
+    /// empty list removes them all; null leaves them untouched. An update that
+    /// sends only <c>Tags</c> works on every post, published ones included. To
+    /// change a few tags on many posts at once, use <see cref="TagsResource.ApplyAsync"/>.
+    /// </summary>
+    [JsonPropertyName("tags")]
+    public IList<object>? Tags { get; set; }
+
     [JsonPropertyName("channels")]
     public IList<string>? Channels { get; set; }
 
@@ -479,6 +497,9 @@ public sealed class PostListParams
 
     /// <summary>Items to skip (default 0).</summary>
     public int? Offset { get; set; }
+
+    /// <summary>Only posts with this tag: a tag id or name, comma separated for any of several. An unknown tag answers 404 <c>tag_not_found</c>.</summary>
+    public string? Tag { get; set; }
 }
 
 /// <summary>Query parameters for <c>GET /posts/recent-platform</c>.</summary>

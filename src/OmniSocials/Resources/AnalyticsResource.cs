@@ -26,7 +26,11 @@ public sealed class AnalyticsResource
         return _client.GetAsync("/analytics/posts", query, cancellationToken);
     }
 
-    /// <summary><c>GET /analytics/overview</c>: workspace-wide totals for a period.</summary>
+    /// <summary>
+    /// <c>GET /analytics/overview</c>: workspace-wide totals for a period.
+    /// <see cref="AnalyticsOverviewParams.Tag"/> limits the post numbers to the
+    /// posts with that tag; account numbers stay those of the whole account.
+    /// </summary>
     public Task<JsonElement?> OverviewAsync(AnalyticsOverviewParams? parameters = null, CancellationToken cancellationToken = default)
     {
         var query = new List<KeyValuePair<string, string?>>
@@ -34,8 +38,29 @@ public sealed class AnalyticsResource
             new("period", parameters?.Period),
             new("start_date", parameters?.StartDate),
             new("end_date", parameters?.EndDate),
+            new("tag", parameters?.Tag),
         };
         return _client.GetAsync("/analytics/overview", query, cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>GET /analytics/tags</c>: how each post tag did against your normal
+    /// (default: the last 90 days). Returns <c>{ data: { period, platform,
+    /// min_posts, tags, untagged, normals } }</c>; <c>tags</c> lists the
+    /// comparable tags first, best first. <c>vs_normal</c> is a fraction (0.38
+    /// = 38% above normal), <c>engagement_rate</c> a percent. Optional typed
+    /// model: <see cref="TagAnalyticsResponse"/>. Requires <c>analytics:read</c>.
+    /// </summary>
+    public Task<JsonElement?> TagsAsync(TagAnalyticsParams? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var query = new List<KeyValuePair<string, string?>>
+        {
+            new("start_date", parameters?.StartDate),
+            new("end_date", parameters?.EndDate),
+            new("platform", parameters?.Platform),
+            new("min_posts", parameters?.MinPosts?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        };
+        return _client.GetAsync("/analytics/tags", query, cancellationToken);
     }
 
     /// <summary><c>GET /analytics/accounts</c>: account-level stats (followers etc).</summary>
