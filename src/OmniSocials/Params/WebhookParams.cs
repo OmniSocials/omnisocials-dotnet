@@ -9,7 +9,11 @@ public class WebhookCreateParams
     [JsonPropertyName("url")]
     public string Url { get; set; } = "";
 
-    /// <summary>Events to subscribe to: post.scheduled, post.published, post.failed, post.approved, post.rejected.</summary>
+    /// <summary>
+    /// Events to subscribe to: post.scheduled, post.published, post.failed,
+    /// post.approved, post.rejected, ad.status_changed (its <c>data</c> is the
+    /// campaign, see <see cref="AdStatusChangedEventData"/>).
+    /// </summary>
     [JsonPropertyName("events")]
     public IList<string> Events { get; set; } = new List<string>();
 }

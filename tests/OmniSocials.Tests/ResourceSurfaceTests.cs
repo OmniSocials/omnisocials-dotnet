@@ -5,7 +5,7 @@ using Xunit;
 namespace OmniSocials.Tests;
 
 /// <summary>
-/// Guards the full v1 endpoint surface (53 endpoints + GET /health): every
+/// Guards the full v1 endpoint surface (77 endpoints + GET /health): every
 /// resource method must exist, return Task&lt;JsonElement?&gt;, and accept a
 /// CancellationToken.
 /// </summary>
@@ -24,8 +24,13 @@ public class ResourceSurfaceTests
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
     [InlineData(typeof(PinterestResource), "ListProductsAsync,ValidateProductAsync")]
     [InlineData(typeof(AutomationsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,ListEventsAsync")]
+    [InlineData(typeof(AdsResource),
+        "ListAccountsAsync,CapabilitiesAsync,ListAsync,GetAsync,BoostAsync,BoostMultiAsync,CreateAsync,UpdateAsync,ActivateAsync,ActivateMultiAsync,PauseAsync,ResumeAsync,DeleteAsync,OverviewAsync,SuggestionsAsync,ResearchKeywordsAsync,KeywordMetricsAsync")]
+    [InlineData(typeof(AdDraftsResource), "DefaultsAsync,CreateAsync,GetAsync,UpdateAsync,DeleteAsync,AttachAccountAsync,LaunchAsync")]
     [InlineData(typeof(WebhooksResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,RotateSecretAsync")]
     [InlineData(typeof(InboxResource), "ListConversationsAsync,GetMessagesAsync,MarkReadAsync,ReplyAsync,HideAsync,LikeAsync,DeleteMessageAsync,NextAsync")]
+    [InlineData(typeof(LimitsResource), "ListAsync")]
+    [InlineData(typeof(FeatureRequestsResource), "CreateAsync,ListAsync,GetAsync")]
     public void Resource_exposes_expected_methods(Type resourceType, string expectedMethods)
     {
         foreach (var name in expectedMethods.Split(','))
@@ -62,8 +67,12 @@ public class ResourceSurfaceTests
         Assert.Equal(typeof(LocationsResource), client.GetProperty("Locations")!.PropertyType);
         Assert.Equal(typeof(PinterestResource), client.GetProperty("Pinterest")!.PropertyType);
         Assert.Equal(typeof(AutomationsResource), client.GetProperty("Automations")!.PropertyType);
+        Assert.Equal(typeof(AdsResource), client.GetProperty("Ads")!.PropertyType);
+        Assert.Equal(typeof(AdDraftsResource), typeof(AdsResource).GetProperty("Drafts")!.PropertyType);
         Assert.Equal(typeof(WebhooksResource), client.GetProperty("Webhooks")!.PropertyType);
         Assert.Equal(typeof(InboxResource), client.GetProperty("Inbox")!.PropertyType);
+        Assert.Equal(typeof(LimitsResource), client.GetProperty("Limits")!.PropertyType);
+        Assert.Equal(typeof(FeatureRequestsResource), client.GetProperty("FeatureRequests")!.PropertyType);
 
         var health = client.GetMethod("HealthAsync");
         Assert.NotNull(health);

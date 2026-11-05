@@ -20,8 +20,9 @@ public sealed class AutomationEventListParams
 {
     /// <summary>
     /// "sent", "skipped", "failed", "pending", "queued" (the answer waits for a
-    /// free slot under the send cap and goes out within the hour) or
-    /// "opted_out" (the person replied STOP on X).
+    /// free slot under the send cap and goes out within the hour),
+    /// "opted_out" (the person replied STOP on X) or "waiting" (Follow first:
+    /// asked to follow, the link goes out after the follow).
     /// </summary>
     public string? Outcome { get; set; }
 
@@ -92,7 +93,19 @@ public class AutomationCreateParams
     /// <summary>
     /// Required. <c>{ ["dm"] = new { text = "..." } }</c> (max 1000 characters)
     /// plus an optional <c>["public_reply"] = new { enabled = true, variations = new[] { "..." } }</c>
-    /// (comment kind only, up to 10 variations of 300 characters).
+    /// (comment kind only, up to 10 variations of 300 characters) and an
+    /// optional <c>["follow_gate"] = new { enabled = true, first_message = new { text = "...", button = "..." }, not_following = new { text = "...", button = "..." } }</c>:
+    /// Follow first, Instagram only. The link (the <c>dm</c> text) then goes
+    /// out only to people who follow the account: a comment gets the first
+    /// message as the private reply, with one button, and a tap checks the
+    /// follow; anyone who does not follow yet gets the <c>not_following</c>
+    /// message with its button, and every later tap checks again. A DM or a
+    /// story reply is checked at once. When Instagram gives no answer the
+    /// link goes out anyway. Texts hold 640 characters, buttons 20; a text or
+    /// button left out is the default. <c>enabled = true</c> on a Facebook or
+    /// X automation is a <c>400 follow_gate_instagram_only</c>. The response
+    /// carries the gate with its texts (null on Facebook and X) and
+    /// <c>stats.followed</c>.
     /// </summary>
     [JsonPropertyName("actions")]
     public Dictionary<string, object?>? Actions { get; set; }
@@ -148,6 +161,8 @@ public class AutomationUpdateParams
     /// Merged into the stored actions (see <see cref="AutomationCreateParams.Actions"/>):
     /// a new <c>dm.text</c> keeps the public reply; <c>public_reply</c> with
     /// <c>enabled = false</c> or <c>variations = []</c> turns it off.
+    /// <c>follow_gate</c> merges too: <c>enabled = false</c> keeps the texts,
+    /// new texts keep the switch, <c>["follow_gate"] = null</c> turns it off.
     /// </summary>
     [JsonPropertyName("actions")]
     public Dictionary<string, object?>? Actions { get; set; }

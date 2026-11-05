@@ -58,6 +58,31 @@ public class WebhookSignatureTests
     }
 
     [Fact]
+    public void Ad_status_changed_event_carries_the_campaign()
+    {
+        const string payload =
+            "{\"id\":\"evt_3\",\"type\":\"ad.status_changed\",\"created_at\":\"2026-07-13T10:00:05Z\"," +
+            "\"data\":{\"campaign_id\":42,\"workspace_id\":\"456\",\"name\":\"Boost: Summer launch post\"," +
+            "\"platform\":\"meta\",\"campaign_type\":\"boost\",\"status\":\"active\"," +
+            "\"previous_status\":\"pending_review\",\"external_campaign_id\":\"23851234567890123\"," +
+            "\"budget\":{\"type\":\"daily\",\"amount\":10,\"currency\":\"EUR\"}}}";
+
+        var evt = WebhookSignature.Verify(payload, Sign(Secret, Now(), payload), Secret);
+
+        Assert.Equal("ad.status_changed", evt.GetProperty("type").GetString());
+        Assert.False(evt.GetProperty("data").TryGetProperty("post_id", out _));
+        var data = evt.GetProperty("data").Deserialize<AdStatusChangedEventData>()!;
+        Assert.Equal(42, data.CampaignId);
+        Assert.Equal(456, data.WorkspaceId); // a numeric string reads as a number
+        Assert.Equal("pending_review", data.PreviousStatus);
+        Assert.Equal("active", data.Status);
+        Assert.Equal("boost", data.CampaignType);
+        Assert.Equal("23851234567890123", data.ExternalCampaignId);
+        Assert.Equal(10m, data.Budget!.Amount);
+        Assert.Equal("EUR", data.Budget.Currency);
+    }
+
+    [Fact]
     public void Byte_array_payload_overload_verifies()
     {
         var signature = Sign(Secret, Now(), Payload);

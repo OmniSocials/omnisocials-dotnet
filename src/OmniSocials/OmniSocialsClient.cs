@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.14.0";
+    public const string Version = "0.15.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
@@ -43,7 +43,10 @@ public sealed class OmniSocialsClient : IDisposable
     /// <summary>Per-request timeout (applies to every retry attempt individually).</summary>
     public TimeSpan Timeout { get; }
 
-    /// <summary>Automatic retries on 429 / 5xx / connection errors.</summary>
+    /// <summary>
+    /// Automatic retries on 429 / 5xx / connection errors. A call that can start
+    /// or raise ad spend is retried on a 429 only (see <see cref="AdsResource"/>).
+    /// </summary>
     public int MaxRetries { get; }
 
     public PostsResource Posts { get; }
@@ -61,8 +64,18 @@ public sealed class OmniSocialsClient : IDisposable
     public LocationsResource Locations { get; }
     public PinterestResource Pinterest { get; }
     public AutomationsResource Automations { get; }
+
+    /// <summary>Ads: boosts, campaigns and "Create an ad" drafts (<see cref="AdsResource.Drafts"/>).</summary>
+    public AdsResource Ads { get; }
+
     public WebhooksResource Webhooks { get; }
     public InboxResource Inbox { get; }
+
+    /// <summary>What OmniSocials cannot do, why, and what to do instead.</summary>
+    public LimitsResource Limits { get; }
+
+    /// <summary>Feature requests to the OmniSocials team, for the person who owns the key.</summary>
+    public FeatureRequestsResource FeatureRequests { get; }
 
     /// <summary>
     /// Create a client. The API key comes from <paramref name="options"/> or, when not
@@ -108,8 +121,11 @@ public sealed class OmniSocialsClient : IDisposable
         Locations = new LocationsResource(this);
         Pinterest = new PinterestResource(this);
         Automations = new AutomationsResource(this);
+        Ads = new AdsResource(this);
         Webhooks = new WebhooksResource(this);
         Inbox = new InboxResource(this);
+        Limits = new LimitsResource(this);
+        FeatureRequests = new FeatureRequestsResource(this);
     }
 
     /// <summary><c>GET /health</c> (no scopes required).</summary>
@@ -132,6 +148,14 @@ public sealed class OmniSocialsClient : IDisposable
         CancellationToken cancellationToken)
         => RequestAsync(HttpMethod.Post, path, null, body, null, cancellationToken);
 
+    /// <summary>POST retried as <paramref name="retry"/> says (ad spend calls pass <see cref="RetryPolicy.RateLimitOnly"/>).</summary>
+    internal Task<JsonElement?> PostAsync(
+        string path,
+        object? body,
+        RetryPolicy retry,
+        CancellationToken cancellationToken)
+        => RequestAsync(HttpMethod.Post, path, null, body, null, cancellationToken, retry);
+
     internal Task<JsonElement?> PostFormAsync(
         string path,
         Func<HttpContent> contentFactory,
@@ -144,6 +168,21 @@ public sealed class OmniSocialsClient : IDisposable
         CancellationToken cancellationToken)
         => RequestAsync(HttpMethod.Patch, path, null, body, null, cancellationToken);
 
+    /// <summary>PATCH retried as <paramref name="retry"/> says.</summary>
+    internal Task<JsonElement?> PatchAsync(
+        string path,
+        object body,
+        RetryPolicy retry,
+        CancellationToken cancellationToken)
+        => RequestAsync(HttpMethod.Patch, path, null, body, null, cancellationToken, retry);
+
+    /// <summary>PUT a JSON body: it replaces the whole resource.</summary>
+    internal Task<JsonElement?> PutAsync(
+        string path,
+        object body,
+        CancellationToken cancellationToken)
+        => RequestAsync(HttpMethod.Put, path, null, body, null, cancellationToken);
+
     internal Task<JsonElement?> DeleteAsync(
         string path,
         CancellationToken cancellationToken)
@@ -153,7 +192,9 @@ public sealed class OmniSocialsClient : IDisposable
     /// Core request loop: builds the URL, sends the request with a per-attempt
     /// timeout, and retries 429 / 5xx / connection errors / timeouts with
     /// exponential backoff plus jitter (honoring Retry-After when present).
-    /// Returns the parsed response body as-is; 204 returns null.
+    /// With <see cref="RetryPolicy.RateLimitOnly"/> only a 429 is retried: after
+    /// a 5xx, a connection error or a timeout a call that can start ad spend may
+    /// have gone through. Returns the parsed response body as-is; 204 returns null.
     /// </summary>
     internal async Task<JsonElement?> RequestAsync(
         HttpMethod method,
@@ -161,9 +202,11 @@ public sealed class OmniSocialsClient : IDisposable
         IReadOnlyList<KeyValuePair<string, string?>>? query,
         object? jsonBody,
         Func<HttpContent>? contentFactory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RetryPolicy retry = RetryPolicy.Default)
     {
         var url = BuildUrl(path, query);
+        var rateLimitOnly = retry == RetryPolicy.RateLimitOnly;
         // Serialize once; a fresh HttpContent is built per attempt because a
         // request message (and its content) cannot be reused after sending.
         string? json = jsonBody is null ? null : JsonSerializer.Serialize(jsonBody, SerializerOptions);
@@ -201,7 +244,7 @@ public sealed class OmniSocialsClient : IDisposable
                 }
                 catch (OperationCanceledException ex)
                 {
-                    if (attempt < MaxRetries)
+                    if (!rateLimitOnly && attempt < MaxRetries)
                     {
                         await Task.Delay(BackoffDelay(attempt, null), cancellationToken).ConfigureAwait(false);
                         continue;
@@ -211,7 +254,7 @@ public sealed class OmniSocialsClient : IDisposable
                 }
                 catch (HttpRequestException ex)
                 {
-                    if (attempt < MaxRetries)
+                    if (!rateLimitOnly && attempt < MaxRetries)
                     {
                         await Task.Delay(BackoffDelay(attempt, null), cancellationToken).ConfigureAwait(false);
                         continue;
@@ -241,7 +284,7 @@ public sealed class OmniSocialsClient : IDisposable
 
                 var status = (int)response.StatusCode;
                 var retryAfter = ParseRetryAfter(response);
-                var retryable = status == 429 || status >= 500;
+                var retryable = status == 429 || (status >= 500 && !rateLimitOnly);
                 if (retryable && attempt < MaxRetries)
                 {
                     await Task.Delay(BackoffDelay(attempt, retryAfter), cancellationToken).ConfigureAwait(false);

@@ -151,7 +151,9 @@ public class PostCreateParams
     /// <see cref="Channels"/>): a keyword in a comment is answered with a DM, once
     /// per person, with an optional public reply under the comment.
     /// <c>{ ["trigger"] = new { keywords = new[] { "guide" }, match = "word" }, ["actions"] = new { dm = new { text = "..." }, public_reply = new { enabled = true, variations = new[] { "..." } } }, ["limits"] = new { max_sends = 500 }, ["platforms"] = new[] { "instagram", "facebook" } }</c>
-    /// (see <see cref="AutomationCreateParams"/> for the fields). <c>platforms</c> makes
+    /// (see <see cref="AutomationCreateParams"/> for the fields, also
+    /// <c>follow_gate</c> in the actions, Follow first, which applies to the
+    /// Instagram automation only). <c>platforms</c> makes
     /// one automation per listed channel; each must be a channel of the post. Without
     /// it: Instagram when the post goes there, else Facebook. Needs the
     /// <c>automations:write</c> scope on the key (<c>403 insufficient_scope</c>, checked
@@ -497,6 +499,12 @@ public sealed class PostListParams
 
     /// <summary>Items to skip (default 0).</summary>
     public int? Offset { get; set; }
+
+    /// <summary>Only posts whose <c>schedule_at</c> is on or after this moment (for a post sent at once: when it was sent). "YYYY-MM-DD" (a UTC day), "YYYY-MM" (a month) or an ISO 8601 datetime. With a range the posts come in calendar order (earliest first).</summary>
+    public string? StartDate { get; set; }
+
+    /// <summary>Only posts whose <c>schedule_at</c> is on or before this moment (inclusive). Same formats as <see cref="StartDate"/>.</summary>
+    public string? EndDate { get; set; }
 
     /// <summary>Only posts with this tag: a tag id or name, comma separated for any of several. An unknown tag answers 404 <c>tag_not_found</c>.</summary>
     public string? Tag { get; set; }

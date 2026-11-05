@@ -62,9 +62,13 @@ public sealed class AutomationsResource
     /// <see cref="AutomationCreateParams.FacebookPostId"/> (a Page post
     /// published outside OmniSocials; implies "facebook"), at most one; a
     /// trigger with scope "next_post" or "any" needs none.
-    /// <see cref="AutomationCreateParams.Actions"/> is required. Requires the
+    /// <see cref="AutomationCreateParams.Actions"/> is required; its
+    /// <c>follow_gate</c> (Follow first, Instagram only) sends the link only to
+    /// people who follow the account, and a person who has not followed yet is
+    /// an event with outcome "waiting". Requires the
     /// <c>automations:write</c> scope (opt-in on the API key). Errors:
-    /// <c>400 validation_error</c>, <c>400 post_not_instagram</c>,
+    /// <c>400 validation_error</c>, <c>400 follow_gate_instagram_only</c>,
+    /// <c>400 post_not_instagram</c>,
     /// <c>400 post_not_facebook</c>, <c>400 post_required</c>,
     /// <c>404 post_not_found</c>, <c>404 instagram_media_not_found</c>,
     /// <c>404 facebook_post_not_found</c>, <c>409 instagram_not_connected</c>,
@@ -83,7 +87,10 @@ public sealed class AutomationsResource
     /// the kinds, the scope and the match; a new <c>dm.text</c> keeps the
     /// public reply; <c>stop_at</c> keeps <c>max_sends</c>.
     /// <c>public_reply.enabled = false</c> or <c>variations = []</c> turns the
-    /// public reply off; <c>["max_sends"] = null</c> removes that limit.
+    /// public reply off; <c>follow_gate = new { enabled = false }</c> turns
+    /// Follow first off and keeps its texts, new texts keep the switch, and
+    /// <c>["follow_gate"] = null</c> turns it off; <c>["max_sends"] = null</c>
+    /// removes that limit.
     /// <c>Status = "paused"</c> pauses and <c>"active"</c> resumes; another
     /// <c>PostId</c> / <c>InstagramMediaId</c> / <c>FacebookPostId</c> moves the
     /// automation to that post. The platform cannot change
@@ -105,7 +112,7 @@ public sealed class AutomationsResource
     /// <c>GET /automations/:id/events</c>: the automation's activity, one event
     /// per person it answered, skipped or failed on. Filter by
     /// <see cref="AutomationEventListParams.Outcome"/> ("sent", "skipped",
-    /// "failed", "pending", "queued", "opted_out"); <c>Limit</c> is 1 to 100 (default 25),
+    /// "failed", "pending", "queued", "opted_out", "waiting"); <c>Limit</c> is 1 to 100 (default 25),
     /// <c>Offset</c> skips. Requires the <c>automations:read</c> scope.
     /// <para>
     /// The response is not the plain list envelope:
@@ -114,11 +121,14 @@ public sealed class AutomationsResource
     /// no events is left out). Each event carries <c>kind</c> ("comment",
     /// "dm", "story_reply"), <c>outcome</c>, <c>reason</c> /
     /// <c>reason_label</c> (X adds the skip reasons "dms_closed", "no_credits",
-    /// "opted_out" and "automation_off"), <c>person</c> (<c>id</c>, <c>username</c>; on
+    /// "opted_out" and "automation_off"; Follow first adds "already_waiting"),
+    /// <c>person</c> (<c>id</c>, <c>username</c>; on
     /// Facebook the person's name, since Facebook has no @handle),
     /// <c>trigger_id</c>, <c>trigger_text</c>, <c>message</c> (the DM sent),
-    /// <c>public_reply</c>, <c>platform_message_id</c>, <c>created_at</c> and
-    /// <c>sent_at</c>.
+    /// <c>public_reply</c>, <c>platform_message_id</c>, <c>follow_gate</c>
+    /// (Follow first: <c>state</c> "waiting" or "done", <c>asked_at</c>,
+    /// <c>taps</c>, <c>followed</c>, <c>checked</c>, <c>after_ask</c>; else null),
+    /// <c>created_at</c> and <c>sent_at</c>.
     /// </para>
     /// </summary>
     public Task<JsonElement?> ListEventsAsync(string id, AutomationEventListParams? parameters = null, CancellationToken cancellationToken = default)

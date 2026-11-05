@@ -20,8 +20,10 @@ public sealed class WebhooksResource
     /// <summary>
     /// <c>POST /webhooks</c>: register an endpoint for event deliveries
     /// (post.scheduled, post.published, post.failed, post.approved,
-    /// post.rejected). The response includes the signing <c>secret</c>; save
-    /// it, it is only shown once.
+    /// post.rejected, ad.status_changed). The <c>data</c> of an
+    /// <c>ad.status_changed</c> delivery is the campaign, not a post (see
+    /// <see cref="AdStatusChangedEventData"/>). The response includes the
+    /// signing <c>secret</c>; save it, it is only shown once.
     /// </summary>
     public Task<JsonElement?> CreateAsync(WebhookCreateParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/webhooks", parameters, cancellationToken);

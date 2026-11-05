@@ -51,7 +51,7 @@ var client = new OmniSocialsClient(new OmniSocialsOptions
 });
 ```
 
-Retries use exponential backoff (0.5s, 1s, 2s, ...) with jitter and honor the `Retry-After` header. Other 4xx responses are never retried. The timeout applies per attempt, so a retried request still gets its full time budget.
+Retries use exponential backoff (0.5s, 1s, 2s, ...) with jitter and honor the `Retry-After` header. Other 4xx responses are never retried. The timeout applies per attempt, so a retried request still gets its full time budget. A call that can start or raise ad spend is retried on a 429 only (see [Ads](#ads)).
 
 `OmniSocialsClient` owns an `HttpClient` internally and implements `IDisposable`; create one client and reuse it for the lifetime of your application.
 
@@ -153,7 +153,25 @@ foreach (var item in events.GetProperty("data").EnumerateArray())
 }
 ```
 
-The events response is `data`, `counts` and `pagination`, not the plain list: `counts` is the number of events per outcome (`sent`, `skipped`, `failed`, `pending`, `queued`, `opted_out`). An automation can also listen on a post published outside OmniSocials (`client.Automations.CreateAsync` with `InstagramMediaId`), on the next post the workspace publishes (`Trigger` with `["scope"] = "next_post"`) or on every post (`"any"`), and on DMs and story replies (`["kinds"] = new[] { "dm", "story_reply" }`).
+The events response is `data`, `counts` and `pagination`, not the plain list: `counts` is the number of events per outcome (`sent`, `skipped`, `failed`, `pending`, `queued`, `opted_out`, `waiting`). An automation can also listen on a post published outside OmniSocials (`client.Automations.CreateAsync` with `InstagramMediaId`), on the next post the workspace publishes (`Trigger` with `["scope"] = "next_post"`) or on every post (`"any"`), and on DMs and story replies (`["kinds"] = new[] { "dm", "story_reply" }`).
+
+Follow first (`["follow_gate"]` in `Actions`, Instagram only) sends the link only to people who follow the account. On a comment the private reply is a first message with one button; a tap makes OmniSocials ask Instagram whether the person follows. A follower gets the DM text, anyone else gets the `not_following` message with its button, and every later tap checks again. A DM or a story reply is checked at once. When Instagram gives no answer the link goes out anyway. Texts hold 640 characters and buttons 20; leave them out for the defaults. A person who has not followed yet is an event with outcome `waiting` and a `follow_gate` object (`state`, `taps`, `followed`, `checked`, `after_ask`); `stats.followed` counts the people who followed after the ask. `enabled = true` on a Facebook or X automation is a `400 follow_gate_instagram_only`.
+
+```csharp
+await client.Automations.UpdateAsync(automationId, new AutomationUpdateParams
+{
+    Actions = new Dictionary<string, object?>
+    {
+        ["dm"] = new { text = "Here is the guide: https://example.com/guide" },
+        ["follow_gate"] = new
+        {
+            enabled = true,
+            first_message = new { text = "Tap the button and I'll send you the link 👇", button = "Send me the link" },
+            not_following = new { text = "Almost there! Follow @yourbrand first, then tap the button again.", button = "I follow now" },
+        },
+    },
+});
+```
 
 A Facebook Page works the same way, and the DM lands in Messenger: set `Platform = "facebook"` on `AutomationCreateParams`, or `FacebookPostId` for a Page post published outside OmniSocials. On a post, `["platforms"] = new[] { "instagram", "facebook" }` in `CommentDmAutomation` makes one automation per channel with the same keywords and DM. Facebook has no story replies.
 
@@ -812,9 +830,9 @@ var liked = await client.Inbox.LikeAsync(messageId); // like
 await client.Inbox.LikeAsync(messageId, like: false); // unlike
 Console.WriteLine(liked?.Deserialize<InboxLikeResponse>()?.Data.Liked); // True
 
-// Delete a comment outright (Facebook, Instagram, TikTok; YouTube: hide
-// instead). Replies under it go with it; their ids come back as
-// removed_reply_ids.
+// Delete a comment outright, or one of your own replies (Facebook,
+// Instagram, TikTok; YouTube: hide instead). Replies under it go with it;
+// their ids come back as removed_reply_ids.
 await client.Inbox.DeleteMessageAsync(messageId);
 ```
 
@@ -880,9 +898,75 @@ if (typed.Pagination.HasMore)
 }
 ```
 
+## Ads
+
+Boost a published post or create a new ad on Meta, Pinterest, TikTok, LinkedIn, X and Google. Ads spend real money, so every call that starts or raises spend asks for the amount again: `Ads.ActivateAsync`, `Ads.ActivateMultiAsync`, `Ads.Drafts.LaunchAsync` and a budget raise through `Ads.UpdateAsync`. Show the person the amount first and pass it only after they agree. These calls and `Ads.ResumeAsync` are not retried after a 5xx, a connection error or a timeout, because the first attempt may have started the ad: read the campaign or the draft to see what happened. A 429 is still retried.
+
+The `ads:read` and `ads:write` scopes are opt-in: create the API key with **Ads** switched on (Settings, API). A key without them gets a `PermissionDeniedException` with code `insufficient_scope`. Ad accounts are connected and picked in the OmniSocials dashboard. Budgets are in major units (10 = 10 EUR) in the ad account's currency, as `decimal`.
+
+### Create an ad (draft, then launch)
+
+```csharp
+var caps = (await client.Ads.CapabilitiesAsync())!.Value.GetProperty("data");
+Console.WriteLine($"{caps.GetProperty("create_networks")} {caps.GetProperty("network_states")}");
+
+var created = await client.Ads.Drafts.CreateAsync(new AdDraftParams
+{
+    Name = "Autumn sale",
+    Objective = "traffic",
+    Platforms = new[] { "meta", "linkedin" },
+    Budget = new AdDraftBudget { Amount = 10, Currency = "EUR" },
+    Schedule = new AdDraftSchedule { DurationDays = 7 },
+    Targeting = new AdDraftTargeting { Countries = new[] { "NL", "BE" }, AutomaticAudience = true },
+    Ads = new[]
+    {
+        new AdDraftAd
+        {
+            Media = new[] { new AdMediaFile { Url = "https://example.com/sale.jpg", Type = "image", Width = 1080, Height = 1350 } },
+            PrimaryText = "30% off everything this week",
+            Headline = "Autumn sale",
+            Cta = "shop_now",
+            Link = "https://example.com/sale",
+        },
+    },
+});
+var draft = created?.Deserialize<AdDraftResponse>()!.Data;
+
+// A draft spends nothing. Hand draft.ReviewUrl to the person, or start it
+// after they confirmed 10 EUR a day per network:
+var launched = await client.Ads.Drafts.LaunchAsync(draft!.GroupId, 10m);
+foreach (var result in launched!.Value.Deserialize<AdDraftLaunchResponse>()!.Data.Results)
+{
+    Console.WriteLine($"{result.Platform} {(result.Ok ? "started" : result.Error)}");
+}
+```
+
+A draft needs no ad account; `client.Ads.Drafts.AttachAccountAsync(groupId, "meta", adAccountId)` sets one, and `campaigns[].readiness` says what still stops a network. To confirm a different daily amount per campaign, pass `new AdDraftLaunchParams { ConfirmBudgetAmounts = ... }` (campaign id to amount). `Drafts.UpdateAsync(groupId, parameters)` replaces the whole draft (HTTP PUT). A platform entry can be a network key or an `AdDraftPlatform` with its own `BudgetAmount` or `AdAccountId`. On Meta an ad can carry a second upright 9:16 file for Stories and Reels: `PlacementMedia = new AdPlacementMedia { StoriesReels = new AdMediaFile { Url = ..., Type = "image" } }`.
+
+### Boost a post
+
+```csharp
+var accounts = (await client.Ads.ListAccountsAsync())?.Deserialize<AdAccountsResponse>();
+var meta = accounts!.Data.First(a => a.Platform == "meta" && a.IsSelected);
+
+var boosted = await client.Ads.BoostAsync(new AdBoostParams
+{
+    PostId = 12345,
+    AdAccountId = meta.Id,
+    Budget = new AdBudget { Type = "daily", Amount = 5, Currency = meta.AccountInfo?.Currency ?? "EUR" },
+    Targeting = new Dictionary<string, object?> { ["countries"] = new[] { "NL" } },
+});
+var boost = boosted?.Deserialize<AdCampaignResponse>()!.Data;
+
+// The boost is a draft. Start it only after the person confirmed 5 a day:
+await client.Ads.ActivateAsync(boost!.Id, 5m);
+```
+
+`client.Ads.BoostMultiAsync(new AdBoostMultiParams { AdAccountIds = ..., ... })` makes one draft boost per ad account (up to 10, the same budget each). `SuggestionsAsync()` lists posts that do better than your median, `OverviewAsync()` the totals, and `ListAsync`, `GetAsync`, `PauseAsync`, `ResumeAsync` and `DeleteAsync` manage campaigns. Keyword ideas through the connected Google Ads account: `ResearchKeywordsAsync(new AdKeywordResearchParams { Keywords = new[] { "running shoes" }, Country = "NL" })` and `KeywordMetricsAsync(new AdKeywordMetricsParams { Keywords = ... })`. Optional typed models: `AdAccountsResponse`, `AdCampaignResponse`, `AdCampaignsResponse`, `AdMultiResponse`, `AdDraftResponse`, `AdDraftLaunchResponse`, `AdsOverview`, `AdBoostSuggestion`, `AdKeywordResult`; their ids read from a JSON number or a numeric string.
+
 ## Webhooks
 
-Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`.
+Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`. `ad.status_changed` fires when an ad campaign changes status (for example `pending_review` to `active` or `rejected`); its `data` is the campaign, not a post, typed as `AdStatusChangedEventData` (`CampaignId`, `WorkspaceId`, `Name`, `Platform`, `CampaignType`, `Status`, `PreviousStatus`, `ExternalCampaignId`, `Budget`): `webhookEvent.GetProperty("data").Deserialize<AdStatusChangedEventData>()`.
 
 ### Manage endpoints
 
@@ -954,6 +1038,43 @@ app.Run();
 
 `WebhookSignature.Verify` uses a constant-time comparison (`CryptographicOperations.FixedTimeEquals`), rejects timestamps older than `toleranceSeconds` (replay protection), throws `WebhookVerificationException` on any failure, and returns the parsed event as a `JsonElement` on success.
 
+## Limits and feature requests
+
+`client.Limits.ListAsync()` lists what OmniSocials cannot do, why (`says`) and what to do instead (`instead`): platform rules, features not built yet, features that work in the OmniSocials app only. Read it before you tell a person that something is not possible. When the person still wants a `requestable` entry, send a feature request with its `limit_id`. The request is stored for the person who owns the key; they see it in OmniSocials (Settings, Request a feature) and get an email when its status changes. Works with every key, no scope needed.
+
+```csharp
+using System.Text.Json;
+
+var limits = (await client.Limits.ListAsync(new LimitListParams { Platform = "telegram" }))?
+    .Deserialize<LimitListResponse>(); // Area = "posts", "inbox", ...
+foreach (var limit in limits!.Data)
+    Console.WriteLine($"{limit.Id}: {limit.Says} {limit.Instead} requestable={limit.Requestable}");
+
+try
+{
+    var result = (await client.FeatureRequests.CreateAsync(new FeatureRequestCreateParams
+    {
+        Summary = "Post our daily update to the Announcements topic of our Telegram group, not to the whole group.",
+        Platform = "telegram",
+        LimitId = "telegram.forum_topics",
+    }))?.Deserialize<FeatureRequestCreateResponse>();
+    // "created" (new), "voted" (added a vote to your organisation's open request)
+    // or "already_requested" (you asked before; Data is that request)
+    Console.WriteLine($"{result!.Outcome} {result.Data.Id} {result.Data.Status}");
+}
+catch (ApiException ex) when (ex.Code == "not_requestable")
+{
+    // A platform rule or a choice of OmniSocials: nothing was stored.
+    var limit = ex.Body!.Value.GetProperty("error").GetProperty("limit").Deserialize<Limit>()!;
+    Console.WriteLine($"{limit.Says} {limit.Instead}");
+}
+
+var mine = (await client.FeatureRequests.ListAsync())?.Deserialize<FeatureRequestListResponse>(); // newest first, at most 50
+var one = await client.FeatureRequests.GetAsync(mine!.Data[0].Id); // status, team_answer, team_replies
+```
+
+Every method returns the raw `JsonElement?`; `LimitListResponse`, `FeatureRequestCreateResponse`, `FeatureRequestListResponse` and `FeatureRequestResponse` (with `Limit`, `FeatureRequest` and `FeatureRequestTeamReply`) are optional typed models. A limit's `Kind` is `platform`, `by_design`, `not_built`, `beta`, `dashboard_only` or `needs_setup`, and `Requestable` is false for `platform` and `by_design`; `Kinds` holds a label per kind. A request carries `Status` (`open`, `in_progress`, `completed`, `declined`), `VotesCount`, `TeamAnswer` and `TeamReplies`. `Summary` is 10 to 1000 characters (what the person wants to do and why), `Title` at most 120 (made from the summary when null); `Area` is one of posts, media, inbox, analytics, automations, accounts, ads, team, other. Errors: `400 invalid_summary` / `invalid_title` / `invalid_platform` / `invalid_area` / `unknown_limit`, `409 not_requestable` (the entry is in `error.limit` of `ApiException.Body`), `429 too_many_requests` (10 an hour per person, a `RateLimitException`), and `400 invalid_id` / `404 not_found` on `GetAsync`.
+
 ## Health
 
 ```csharp
@@ -1005,7 +1126,7 @@ catch (ApiException ex)
 
 ## API scopes
 
-Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
+Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations and `ads:read` / `ads:write` for ads. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
 
 ## Documentation
 

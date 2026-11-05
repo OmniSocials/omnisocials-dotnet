@@ -183,9 +183,10 @@ public sealed class InboxResource
         => _client.PostAsync($"/inbox/messages/{Uri.EscapeDataString(messageId)}/like", new { like }, cancellationToken);
 
     /// <summary>
-    /// <c>DELETE /inbox/messages/:id</c>: delete a comment someone left on one
-    /// of your posts, on the platform and from the inbox (scope
-    /// <c>inbox:write</c>). Facebook, Instagram and TikTok comments only:
+    /// <c>DELETE /inbox/messages/:id</c>: delete a comment on one of your
+    /// posts, on the platform and from the inbox (scope <c>inbox:write</c>):
+    /// a comment someone left, or one of your own replies (direction
+    /// <c>outgoing</c>). Facebook, Instagram and TikTok comments only:
     /// YouTube's API does not let a channel delete other people's comments,
     /// hide those instead (<see cref="HideAsync"/>). Replies under the deleted
     /// comment go with it (the platforms cascade the delete and the inbox
