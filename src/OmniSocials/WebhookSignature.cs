@@ -10,6 +10,14 @@ namespace OmniSocials;
 /// The signed value is <c>"{timestamp}.{rawBody}"</c>, HMAC-SHA256 with the
 /// webhook secret, hex digest; the <c>X-OmniSocials-Signature</c> header is
 /// <c>t=&lt;unix&gt;,v1=&lt;hex&gt;</c>.
+///
+/// Secret rotation: for 24 hours after <c>Webhooks.RotateSecretAsync</c>,
+/// every delivery carries <c>X-OmniSocials-Signature</c> (signed with the new
+/// secret) and <c>X-OmniSocials-Signature-Previous</c> (signed with the old
+/// secret, same format, same timestamp and body). To keep accepting deliveries
+/// while you switch secrets, verify <c>X-OmniSocials-Signature</c> with the
+/// new secret and, when that throws, <c>X-OmniSocials-Signature-Previous</c>
+/// with the old one.
 /// </summary>
 public static class WebhookSignature
 {
@@ -22,7 +30,12 @@ public static class WebhookSignature
     /// The RAW request body, exactly as received. Do not parse and re-serialize
     /// it first: the signature is computed over the raw bytes.
     /// </param>
-    /// <param name="signature">Value of the X-OmniSocials-Signature header: <c>t=&lt;unix&gt;,v1=&lt;hex&gt;</c>.</param>
+    /// <param name="signature">
+    /// Value of the X-OmniSocials-Signature header: <c>t=&lt;unix&gt;,v1=&lt;hex&gt;</c>.
+    /// For 24 hours after a secret rotation, pass the
+    /// X-OmniSocials-Signature-Previous value with the old secret when the new
+    /// secret does not match.
+    /// </param>
     /// <param name="secret">The webhook's signing secret (shown once on create / rotate-secret).</param>
     /// <param name="toleranceSeconds">Max allowed age of the timestamp, in seconds. Defaults to 300 (5 minutes).</param>
     /// <returns>The parsed event object on success.</returns>

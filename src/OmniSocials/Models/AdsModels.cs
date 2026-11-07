@@ -98,9 +98,9 @@ public sealed class AdCampaign
     public string? Objective { get; set; }
 
     /// <summary>
-    /// Created as "draft"; spends only after activation. "pending_review" = in
-    /// the network's ad review. Also "active", "rejected", "paused", "completed",
-    /// "error".
+    /// Created as "draft"; spends only once a person starts it in the app.
+    /// "pending_review" = in the network's ad review. Also "active", "rejected",
+    /// "paused", "completed", "error".
     /// </summary>
     [JsonPropertyName("status")]
     public string Status { get; set; } = "";
@@ -127,9 +127,18 @@ public sealed class AdCampaign
     [JsonPropertyName("errors")]
     public string? Errors { get; set; }
 
-    /// <summary>Set on a campaign of a "Create an ad" draft: start it with <see cref="AdDraftsResource.LaunchAsync(string, decimal, CancellationToken)"/>.</summary>
+    /// <summary>
+    /// Set on a campaign of a "Create an ad" draft: a person starts it in the
+    /// app, or
+    /// <see cref="AdDraftsResource.LaunchAsync(string, decimal, CancellationToken)"/>
+    /// with a key that has <c>ads:spend</c>.
+    /// </summary>
     [JsonPropertyName("group_id")]
     public string? GroupId { get; set; }
+
+    /// <summary>The network's settings (optimization, messaging, calls, lead form, Google, Meta).</summary>
+    [JsonPropertyName("settings")]
+    public AdNetworkSettings? Settings { get; set; }
 
     /// <summary>A campaign row carries <c>createdAt</c>; <c>created_at</c> is read too.</summary>
     [JsonPropertyName("createdAt")]
@@ -171,7 +180,7 @@ public sealed class AdCampaignsResponse
     public AdPagination? Pagination { get; set; }
 }
 
-/// <summary><c>{ "data": campaign }</c>: get, boost, create, update, activate, pause and resume.</summary>
+/// <summary><c>{ "data": campaign }</c>: get, boost, update, activate, pause and resume.</summary>
 public sealed class AdCampaignResponse
 {
     [JsonPropertyName("data")]
@@ -182,6 +191,8 @@ public sealed class AdCampaignResponse
 /// One target of <see cref="AdsResource.BoostMultiAsync"/> (with
 /// <see cref="AdAccountId"/>) or <see cref="AdsResource.ActivateMultiAsync"/>
 /// (with <see cref="CampaignId"/>). One failed target never stops the others.
+/// <see cref="Code"/> "start_in_app" = the person starts that campaign in the
+/// app (<see cref="Error"/> names the page).
 /// </summary>
 [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 public sealed class AdMultiResult
@@ -215,6 +226,47 @@ public sealed class AdMultiResponse
     public List<AdMultiResult> Results { get; set; } = new();
 }
 
+/// <summary>The totals of <see cref="AdsOverview"/>, spend in major units.</summary>
+[JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+public sealed class AdsTotals
+{
+    /// <summary>
+    /// Null when the campaigns use more than one currency: read
+    /// <see cref="AdsOverview.TotalsByCurrency"/> then. Spend is never added
+    /// across currencies.
+    /// </summary>
+    [JsonPropertyName("spend")]
+    public decimal? Spend { get; set; }
+
+    /// <summary>The one currency of <see cref="Spend"/>; null when there are several (or none).</summary>
+    [JsonPropertyName("currency")]
+    public string? Currency { get; set; }
+
+    [JsonPropertyName("impressions")]
+    public decimal Impressions { get; set; }
+
+    [JsonPropertyName("clicks")]
+    public decimal Clicks { get; set; }
+}
+
+/// <summary>Spend, impressions and clicks of the campaigns in one currency.</summary>
+[JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+public sealed class AdsCurrencyTotals
+{
+    /// <summary>3-letter ISO code; null for campaigns without a currency.</summary>
+    [JsonPropertyName("currency")]
+    public string? Currency { get; set; }
+
+    [JsonPropertyName("spend")]
+    public decimal Spend { get; set; }
+
+    [JsonPropertyName("impressions")]
+    public decimal Impressions { get; set; }
+
+    [JsonPropertyName("clicks")]
+    public decimal Clicks { get; set; }
+}
+
 /// <summary>Response of <see cref="AdsResource.OverviewAsync"/> (inside <c>data</c>).</summary>
 public sealed class AdsOverview
 {
@@ -227,9 +279,13 @@ public sealed class AdsOverview
     [JsonPropertyName("campaigns_by_status")]
     public Dictionary<string, int> CampaignsByStatus { get; set; } = new();
 
-    /// <summary><c>spend</c> (major units), <c>impressions</c>, <c>clicks</c>.</summary>
+    /// <summary>Spend (null with several currencies), currency, impressions, clicks.</summary>
     [JsonPropertyName("totals")]
-    public Dictionary<string, decimal> Totals { get; set; } = new();
+    public AdsTotals Totals { get; set; } = new();
+
+    /// <summary>Spend, impressions and clicks per currency.</summary>
+    [JsonPropertyName("totals_by_currency")]
+    public List<AdsCurrencyTotals> TotalsByCurrency { get; set; } = new();
 }
 
 /// <summary>An organic post that does better than the workspace median: a boost candidate.</summary>
@@ -415,6 +471,10 @@ public sealed class AdDraftCampaign
 
     [JsonPropertyName("readiness")]
     public AdDraftReadiness? Readiness { get; set; }
+
+    /// <summary>The settings of this network (the draft's <c>platforms[].settings</c>).</summary>
+    [JsonPropertyName("settings")]
+    public AdNetworkSettings? Settings { get; set; }
 }
 
 /// <summary>A "Create an ad" draft group.</summary>
@@ -453,7 +513,7 @@ public sealed class AdDraft
     [JsonPropertyName("campaigns")]
     public List<AdDraftCampaign> Campaigns { get; set; } = new();
 
-    /// <summary>The builder in the dashboard, where a person can check and start the ad.</summary>
+    /// <summary>The builder in the dashboard, where the person checks and starts the ad: hand it over.</summary>
     [JsonPropertyName("review_url")]
     public string? ReviewUrl { get; set; }
 }
@@ -465,7 +525,11 @@ public sealed class AdDraftResponse
     public AdDraft Data { get; set; } = new();
 }
 
-/// <summary>The outcome of one network of a launch.</summary>
+/// <summary>
+/// The outcome of one network of a launch. The API sends <c>campaign_id</c> as
+/// a string (64-bit ids); it is read into a number here. <c>code</c>
+/// "start_in_app" = the person starts that network in the app.
+/// </summary>
 [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 public sealed class AdDraftLaunchNetworkResult
 {
@@ -502,15 +566,149 @@ public sealed class AdDraftLaunchResponse
     public AdDraftLaunchResult Data { get; set; } = new();
 }
 
+// ─── Ads API parity (2026-11-05) ────────────────────────────────────────────
+
+/// <summary>
+/// <c>data</c> of <see cref="AdsResource.CapabilitiesAsync"/>. <see cref="Networks"/>
+/// stays raw JSON (goals, media rules, text limits, buttons, minimum budgets,
+/// <c>bid_strategies</c>, <c>settings</c> and <c>ad_fields</c> per network).
+/// </summary>
+public sealed class AdCapabilities
+{
+    [JsonPropertyName("networks")]
+    public List<JsonElement> Networks { get; set; } = new();
+
+    [JsonPropertyName("goals")]
+    public List<string>? Goals { get; set; }
+
+    /// <summary>Goals through the API and MCP only: "lead_generation", "conversions", "messages", "calls".</summary>
+    [JsonPropertyName("api_goals")]
+    public List<string>? ApiGoals { get; set; }
+
+    [JsonPropertyName("ctas")]
+    public List<JsonElement>? Ctas { get; set; }
+
+    /// <summary>The networks open to your organisation for new ads.</summary>
+    [JsonPropertyName("create_networks")]
+    public List<string>? CreateNetworks { get; set; }
+
+    /// <summary>Per network: "live", "preview" or "coming_soon".</summary>
+    [JsonPropertyName("network_states")]
+    public Dictionary<string, string>? NetworkStates { get; set; }
+
+    /// <summary>
+    /// Networks where every API caller stops at the draft, also a key with
+    /// <c>ads:spend</c> (Google): a start answers <c>403 start_in_app</c> and a
+    /// person starts and changes those ads in the app.
+    /// </summary>
+    [JsonPropertyName("api_draft_only")]
+    public List<string>? ApiDraftOnly { get; set; }
+
+    /// <summary>
+    /// Networks where the API may not even pause or delete a campaign that
+    /// reached the network (Google): those calls answer <c>403 start_in_app</c>.
+    /// </summary>
+    [JsonPropertyName("api_stop_in_app")]
+    public List<string>? ApiStopInApp { get; set; }
+
+    /// <summary>
+    /// Per network, the features its API offers here ("tree", "object_status",
+    /// "audiences", "lead_forms", "insights", "reach_frequency", "search_terms"
+    /// ...). A call for a feature a network lacks answers
+    /// <c>400 not_supported_on_network</c>.
+    /// </summary>
+    [JsonPropertyName("features")]
+    public Dictionary<string, List<string>>? Features { get; set; }
+
+    /// <summary>A readable label per feature key.</summary>
+    [JsonPropertyName("feature_labels")]
+    public Dictionary<string, string>? FeatureLabels { get; set; }
+
+    /// <summary>Per network, the types <see cref="AdTargetingResource.SearchAsync"/> takes and the keys of <see cref="AdNetworkTargeting.Include"/>.</summary>
+    [JsonPropertyName("targeting_types")]
+    public Dictionary<string, List<string>>? TargetingTypes { get; set; }
+}
+
+/// <summary>Numbers in major currency units; null = the network does not report it. <c>Ctr</c> is a percent.</summary>
+public sealed class AdMetrics
+{
+    [JsonPropertyName("spend")] public decimal? Spend { get; set; }
+    [JsonPropertyName("impressions")] public double? Impressions { get; set; }
+    [JsonPropertyName("clicks")] public double? Clicks { get; set; }
+    [JsonPropertyName("ctr")] public double? Ctr { get; set; }
+    [JsonPropertyName("cpc")] public decimal? Cpc { get; set; }
+    [JsonPropertyName("cpm")] public decimal? Cpm { get; set; }
+    [JsonPropertyName("reach")] public double? Reach { get; set; }
+    [JsonPropertyName("frequency")] public double? Frequency { get; set; }
+    [JsonPropertyName("conversions")] public double? Conversions { get; set; }
+    [JsonPropertyName("conversion_value")] public decimal? ConversionValue { get; set; }
+    [JsonPropertyName("video_views")] public double? VideoViews { get; set; }
+    [JsonPropertyName("leads")] public double? Leads { get; set; }
+    [JsonPropertyName("engagements")] public double? Engagements { get; set; }
+}
+
+/// <summary>One campaign, ad set or ad as the network has it (<see cref="AdObjectsResource.TreeAsync"/>).</summary>
+public sealed class AdTreeNode
+{
+    /// <summary>"campaign", "ad_set" or "ad".</summary>
+    [JsonPropertyName("level")]
+    public string Level { get; set; } = "";
+
+    /// <summary>The network's own id.</summary>
+    [JsonPropertyName("external_id")]
+    public string ExternalId { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>"active", "paused", "pending_review", "rejected", "error", "completed", "archived", "deleted" or "draft".</summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    [JsonPropertyName("budget")]
+    public AdBudget? Budget { get; set; }
+
+    [JsonPropertyName("objective")]
+    public string? Objective { get; set; }
+
+    [JsonPropertyName("start_at")]
+    public string? StartAt { get; set; }
+
+    [JsonPropertyName("end_at")]
+    public string? EndAt { get; set; }
+
+    [JsonPropertyName("metrics")]
+    public AdMetrics? Metrics { get; set; }
+
+    /// <summary>The network's review of an ad: <c>status</c> and <c>reasons</c>.</summary>
+    [JsonPropertyName("review")]
+    public JsonElement? Review { get; set; }
+
+    /// <summary>"omnisocials" or "external" (made outside OmniSocials).</summary>
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>The OmniSocials campaign id when <see cref="Source"/> is "omnisocials".</summary>
+    [JsonPropertyName("campaign_id")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public long? CampaignId { get; set; }
+
+    [JsonPropertyName("children")]
+    public List<AdTreeNode>? Children { get; set; }
+}
+
 // ─── Webhook event ──────────────────────────────────────────────────────────
 
 /// <summary>
 /// <c>data</c> of an <c>ad.status_changed</c> webhook delivery: the campaign, not
 /// a post. It fires when a campaign changes status, for example "pending_review"
-/// to "active" (the network's review passed and spend started) or to
-/// "rejected". After <see cref="WebhookSignature.Verify(string, string, string, int)"/>,
+/// to "active" (the network's review passed and spend started) or to "rejected".
+/// After <see cref="WebhookSignature.Verify(string, string, string, int)"/>,
 /// check <c>type</c>, then
 /// <c>webhookEvent.GetProperty("data").Deserialize&lt;AdStatusChangedEventData&gt;()</c>.
+/// Subscribing to it needs the <c>ads:read</c> scope on the key and
+/// <c>access_ads</c> for its person (<c>403 insufficient_scope</c> /
+/// <c>insufficient_permission</c>).
 /// </summary>
 [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 public sealed class AdStatusChangedEventData

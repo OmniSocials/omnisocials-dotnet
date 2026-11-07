@@ -12,7 +12,13 @@ public class WebhookCreateParams
     /// <summary>
     /// Events to subscribe to: post.scheduled, post.published, post.failed,
     /// post.approved, post.rejected, ad.status_changed (its <c>data</c> is the
-    /// campaign, see <see cref="AdStatusChangedEventData"/>).
+    /// campaign, see <see cref="AdStatusChangedEventData"/>), ad.created,
+    /// ad.updated, ad.review, ad.delivery_issue, campaign.created,
+    /// campaign.updated, campaign.budget, lead.received, ads.sync_failed,
+    /// ads.sync_recovered, ads.initial_sync_completed, ad_rule.triggered. Any Ads
+    /// event (ad.*, campaign.*, lead.*, ads.*, ad_rule.*) needs the
+    /// <c>ads:read</c> scope on the key and <c>access_ads</c> for its person,
+    /// else <c>403 insufficient_scope</c> / <c>insufficient_permission</c>.
     /// </summary>
     [JsonPropertyName("events")]
     public IList<string> Events { get; set; } = new List<string>();

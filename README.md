@@ -406,14 +406,36 @@ await client.Posts.DeleteAsync(first);  // resolves to null (204)
 
 `RetryAsync` re-publishes only the platforms that failed, on the same post; platforms that already succeeded are never posted again. It is asynchronous: a 200 means the retry is queued, so poll `GetAsync` for the outcome. Max 3 retries per platform.
 
+These calls throw a 409 `ApiException` and change nothing when the post is not in a state for them:
+
+- `post_publishing`: `UpdateAsync` or `DeleteAsync` while the post is publishing (status `posting`) or a retry publishes one of its channels. Poll `GetAsync` until the status is `published`, `warning` or `failed`. An update with only `Tags` still works.
+- `review_required`: changes were requested on the post (`approval_status` `rejected`), so `PublishAsync`, or an update that would schedule it, is refused. It needs a new review: create it again with `approval_workflow_id`. Saving it as a draft works.
+- `retry_in_progress`: `RetryAsync` while another retry of the post runs.
+- `media_processing`: a media id in `CreateAsync`, `CreateAndPublishAsync` or `UpdateAsync` is still processing. Wait until `client.Media.GetAsync(id)` says `ready`, then send the same request again. A file whose processing failed answers `400 invalid_media`: upload it again.
+
 ### Approve or reject a post
 
 ```csharp
-await client.Posts.ApproveAsync(id);                                       // approve the current approval-workflow step
-await client.Posts.RejectAsync(id, "Wrong CTA link, please fix.");         // reject and stop the workflow (comment optional)
+// Read the step you review first, then name it on the decision.
+var review = (await client.Posts.GetApprovalAsync(id))!.Value.Deserialize<PostApprovalResponse>()!.Data;
+int? step = review.CurrentStep;
+
+try
+{
+    await client.Posts.ApproveAsync(id, step); // approve the step you reviewed
+    // or: reject and stop the workflow (comment optional, pass null)
+    // await client.Posts.RejectAsync(id, "Wrong CTA link, please fix.", step);
+}
+catch (ApiException e) when (e.Code == "step_changed")
+{
+    // Somebody decided since you read it: nothing was decided. Read the approval again.
+    Console.WriteLine($"The review is on step {e.Body!.Value.GetProperty("error").GetProperty("current_step_order")}");
+}
 ```
 
-Only works on a post with `approval_status: "pending"` (`status: "in_approval"`). Both act on behalf of the user who owns the API key, who must be a listed approver for the workflow's CURRENT step — steps approve in order, so being an approver on a later step is not enough yet (throws a 403 `ApiException` with `Code` `forbidden`). Approving the last step finalizes the post (`scheduled` or `posting`); rejecting stops the whole workflow immediately, not just the current step.
+Only works on a post with `approval_status: "pending"` (`status: "in_approval"`). Both act on behalf of the user who owns the API key, who must be a listed approver for the workflow's CURRENT step. Steps approve in order, so being an approver on a later step is not enough yet (throws a 403 `ApiException` with `Code` `forbidden`). Approving the last step finalizes the post (`scheduled` or `posting`); rejecting stops the whole workflow immediately, not just the current step.
+
+The step (`int?`, null leaves it out) is optional: the `current_step` of `GetApprovalAsync`. When the review is on another step now (somebody decided since you read it, or a retried call already went through), nothing is decided and the call throws a 409 `ApiException` with `Code` `step_changed` and `error.current_step_order` in its `Body`, the step the review is on now. Without it the call acts on whatever step is current, so a retry after a timeout could approve the next step too. `ApproveAsync(id)` and `RejectAsync(id, comment)` still work.
 
 ### Read the approval review
 
@@ -457,7 +479,7 @@ var upload = await client.Media.UploadFromUrlAsync(new MediaUploadFromUrlParams
 Console.WriteLine(upload!.Value.GetProperty("data").GetProperty("id"));
 ```
 
-Videos over 100MB are processed in the background and come back with status `"processing"`. Every upload response includes a `compatibility` block listing connected platforms that would reject the file.
+Videos over 100MB are processed in the background and come back with status `"processing"`; when such a file cannot be queued, the call throws a 503 `processing_unavailable` (send the same request again in a minute). Every upload response includes a `compatibility` block listing connected platforms that would reject the file.
 
 ### Upload a local file (multipart)
 
@@ -649,6 +671,8 @@ foreach (var account in accounts!.Value.GetProperty("data").EnumerateArray())
     }
 }
 ```
+
+`status` is `active` or `needs_reconnect` (the token was revoked or expired; Bluesky also when its sign-in could not be renewed). Posts to a `needs_reconnect` account fail until it is reconnected in the OmniSocials app. OmniSocials Connect customer workspaces can also show `pick_pending` (Facebook, Connect customers only: no Page chosen yet).
 
 ## Analytics
 
@@ -900,11 +924,11 @@ if (typed.Pagination.HasMore)
 
 ## Ads
 
-Boost a published post or create a new ad on Meta, Pinterest, TikTok, LinkedIn, X and Google. Ads spend real money, so every call that starts or raises spend asks for the amount again: `Ads.ActivateAsync`, `Ads.ActivateMultiAsync`, `Ads.Drafts.LaunchAsync` and a budget raise through `Ads.UpdateAsync`. Show the person the amount first and pass it only after they agree. These calls and `Ads.ResumeAsync` are not retried after a 5xx, a connection error or a timeout, because the first attempt may have started the ad: read the campaign or the draft to see what happened. A 429 is still retried.
+Boost a published post or create a new ad on Meta, Pinterest, TikTok, LinkedIn, X and Google. Boosts and new ads are drafts: your code writes the draft, and the person who pays sees the amount and starts the ad in OmniSocials from the draft's `ReviewUrl`. A key starts and raises spend itself only with the opt-in **Start ads** switch (scope `ads:spend`). Without it `Ads.ActivateAsync`, `Ads.ActivateMultiAsync`, `Ads.ResumeAsync`, `Ads.Drafts.LaunchAsync`, a budget raise or any change of a campaign that reached the network through `Ads.UpdateAsync`, and the parity calls that switch something on or raise a budget answer `403 start_in_app` (a `PermissionDeniedException`), and the error message names the page where the person does it. Google (`api_draft_only` of `Ads.CapabilitiesAsync`) always stops at the draft, also with `ads:spend`. `Ads.PauseAsync` and `Ads.DeleteAsync` stay open, except on the networks in `api_stop_in_app` (Google), where a campaign that reached the network also answers `403 start_in_app`. Only a paused campaign resumes (`409 not_paused`). The calls that start or raise spend repeat the amount (`confirm_budget_amount`) and are not retried after a 5xx, a connection error or a timeout, only after a 429.
 
-The `ads:read` and `ads:write` scopes are opt-in: create the API key with **Ads** switched on (Settings, API). A key without them gets a `PermissionDeniedException` with code `insufficient_scope`. Ad accounts are connected and picked in the OmniSocials dashboard. Budgets are in major units (10 = 10 EUR) in the ad account's currency, as `decimal`.
+The `ads:read` and `ads:write` scopes are opt-in: create the API key with **Ads** switched on (Settings, API). `ads:spend` is the **Start ads** switch under it, offered only to a person with `manage_ads`. A key without a scope it needs gets a `PermissionDeniedException` with code `insufficient_scope`. Ad accounts are connected and picked in the OmniSocials dashboard. Budgets are in major units (10 = 10 EUR) in the ad account's currency, as `decimal`: a draft whose `Budget.Currency` differs from the attached ad account's currency answers `400 currency_mismatch`. Ads errors may carry `param`, the field at fault: read it from the exception's `Body` (`error.param`).
 
-### Create an ad (draft, then launch)
+### Create an ad (a draft the person starts)
 
 ```csharp
 var caps = (await client.Ads.CapabilitiesAsync())!.Value.GetProperty("data");
@@ -932,16 +956,11 @@ var created = await client.Ads.Drafts.CreateAsync(new AdDraftParams
 });
 var draft = created?.Deserialize<AdDraftResponse>()!.Data;
 
-// A draft spends nothing. Hand draft.ReviewUrl to the person, or start it
-// after they confirmed 10 EUR a day per network:
-var launched = await client.Ads.Drafts.LaunchAsync(draft!.GroupId, 10m);
-foreach (var result in launched!.Value.Deserialize<AdDraftLaunchResponse>()!.Data.Results)
-{
-    Console.WriteLine($"{result.Platform} {(result.Ok ? "started" : result.Error)}");
-}
+// A draft spends nothing. The person checks it and starts it in OmniSocials:
+Console.WriteLine($"Check and start your ad: {draft!.ReviewUrl}");
 ```
 
-A draft needs no ad account; `client.Ads.Drafts.AttachAccountAsync(groupId, "meta", adAccountId)` sets one, and `campaigns[].readiness` says what still stops a network. To confirm a different daily amount per campaign, pass `new AdDraftLaunchParams { ConfirmBudgetAmounts = ... }` (campaign id to amount). `Drafts.UpdateAsync(groupId, parameters)` replaces the whole draft (HTTP PUT). A platform entry can be a network key or an `AdDraftPlatform` with its own `BudgetAmount` or `AdAccountId`. On Meta an ad can carry a second upright 9:16 file for Stories and Reels: `PlacementMedia = new AdPlacementMedia { StoriesReels = new AdMediaFile { Url = ..., Type = "image" } }`.
+With a key that has `ads:spend`, `client.Ads.Drafts.LaunchAsync(draft.GroupId, 10m)` starts the draft after the person agreed to the amount; Google is skipped with code `start_in_app`. Without `ads:spend` the call answers `403 start_in_app`. A draft needs no ad account; `client.Ads.Drafts.AttachAccountAsync(groupId, "meta", adAccountId)` sets one, and `campaigns[].readiness` says what still stops a network. To confirm a different daily amount per campaign, pass `new AdDraftLaunchParams { ConfirmBudgetAmounts = ... }` (campaign id to amount). `Drafts.UpdateAsync(groupId, parameters)` replaces the whole draft (HTTP PUT). A platform entry can be a network key or an `AdDraftPlatform` with its own `BudgetAmount` or `AdAccountId`. On Meta an ad can carry a second upright 9:16 file for Stories and Reels: `PlacementMedia = new AdPlacementMedia { StoriesReels = new AdMediaFile { Url = ..., Type = "image" } }`.
 
 ### Boost a post
 
@@ -958,15 +977,63 @@ var boosted = await client.Ads.BoostAsync(new AdBoostParams
 });
 var boost = boosted?.Deserialize<AdCampaignResponse>()!.Data;
 
-// The boost is a draft. Start it only after the person confirmed 5 a day:
-await client.Ads.ActivateAsync(boost!.Id, 5m);
+// The boost is a draft: the person starts it in OmniSocials.
+Console.WriteLine(boost!.Status); // "draft"
 ```
 
-`client.Ads.BoostMultiAsync(new AdBoostMultiParams { AdAccountIds = ..., ... })` makes one draft boost per ad account (up to 10, the same budget each). `SuggestionsAsync()` lists posts that do better than your median, `OverviewAsync()` the totals, and `ListAsync`, `GetAsync`, `PauseAsync`, `ResumeAsync` and `DeleteAsync` manage campaigns. Keyword ideas through the connected Google Ads account: `ResearchKeywordsAsync(new AdKeywordResearchParams { Keywords = new[] { "running shoes" }, Country = "NL" })` and `KeywordMetricsAsync(new AdKeywordMetricsParams { Keywords = ... })`. Optional typed models: `AdAccountsResponse`, `AdCampaignResponse`, `AdCampaignsResponse`, `AdMultiResponse`, `AdDraftResponse`, `AdDraftLaunchResponse`, `AdsOverview`, `AdBoostSuggestion`, `AdKeywordResult`; their ids read from a JSON number or a numeric string.
+`client.Ads.BoostMultiAsync(new AdBoostMultiParams { AdAccountIds = ..., ... })` makes one draft boost per ad account (up to 10, the same budget each). `SuggestionsAsync()` lists posts that do better than your median, `OverviewAsync()` the totals (`Totals.Spend` is null when the campaigns use more than one currency: read `TotalsByCurrency`), and `ListAsync`, `GetAsync`, `PauseAsync` and `DeleteAsync` manage campaigns. Keyword ideas through the connected Google Ads account: `ResearchKeywordsAsync(new AdKeywordResearchParams { Keywords = new[] { "running shoes" }, Country = "NL" })` and `KeywordMetricsAsync(new AdKeywordMetricsParams { Keywords = ... })`. Optional typed models: `AdAccountsResponse`, `AdCampaignResponse`, `AdCampaignsResponse`, `AdMultiResponse`, `AdDraftResponse`, `AdDraftLaunchResponse`, `AdsOverview`, `AdBoostSuggestion`, `AdKeywordResult`; their ids read from a JSON number or a numeric string.
+
+
+### The rest of the Ads API
+
+Each group is a property of `client.Ads`. A network without a feature answers `400 not_supported_on_network`; `CapabilitiesAsync()` lists what each network offers (`AdCapabilities.Features`). Query params are an `IReadOnlyDictionary<string, object?>` (a list becomes a comma list) and bodies any object `System.Text.Json` writes: an anonymous object, a `Dictionary<string, object?>` or a params class such as `AdAudienceCreateParams`, `AdAudienceMembersParams`, `AdLeadFormCreateParams` or `AdBudgetScheduleParams`.
+
+| Property | What it covers |
+|----------|----------------|
+| `Objects` | the live tree of an ad account (`TreeAsync`, typed as `AdTreeNode`), one campaign, ad set or ad (`GetAsync`, `UpdateAsync`, `SetStatusAsync`, `DuplicateAsync`), the import of campaigns made outside OmniSocials (`ImportStatusAsync`, `StartImportAsync`, `ListExternalAsync`, `GetExternalAsync`) |
+| `Targeting` | `SearchAsync`, `BrowseAsync`, `ReachEstimateAsync`, `BidSuggestionsAsync` |
+| `Audiences` | customer lists, lookalikes and company lists: `ListAsync`, `CreateAsync`, `GetAsync`, `UpdateAsync`, `DeleteAsync`, `AddMembersAsync`, `RemoveMembersAsync`, `AddCompaniesAsync` (raw emails and phones are hashed before they leave) |
+| `CampaignAds` | the ads of a campaign: `ListAsync`, `AddAsync` (created paused), `GetAsync`, `SetStatusAsync`, `ReviewAsync` |
+| `LeadForms`, `Leads` | lead forms (`ListAsync`, `CreateAsync`, `GetAsync`, `UpdateAsync`, `DeleteAsync`, `SendTestLeadAsync`) and their leads (`ListAsync`, `CountsAsync`, `UpdateAsync`) |
+| `Conversions` | `DestinationsAsync`, `GoalsAsync`, `CreateCustomAsync`, `SendEventsAsync` |
+| `Insights`, `Reports` | `QueryAsync`, `CampaignAsync`, `AdAsync`, `TimelineAsync`, `PerformanceAsync`, `AlertsAsync`; background reports (`ListAsync`, `StartAsync`, `GetAsync`) |
+| `Rules` | automated rules: `ListAsync`, `CreateAsync`, `TemplatesAsync`, `PreviewAsync`, `ActivityAsync`, `UndoAsync`, `GetAsync`, `UpdateAsync`, `DeleteAsync`, `PreviewSavedAsync`, `RunsAsync` |
+| `Results` | your own numbers per campaign and day: `ListAsync`, `UploadAsync`, `TotalsAsync`, `MetricsAsync`, `PutMetricAsync` |
+| `Media`, `Previews`, `Partnership`, `Comments` | the network's media library, previews drawn by the network (`CreateAsync`, `ForAdAsync`), Meta partnership ads (`ListContentAsync`, `ListPermissionsAsync`, `SetPermissionAsync`), comments on ads |
+| `Accounts` | one ad account: `HealthAsync`, `FinanceAsync`, `UpdateSettingsAsync`, `ListUsersAsync`, `AddUserAsync`, `RemoveUserAsync`, `ActivityAsync`, `BusinessesAsync`, `DsaAsync`, `HierarchyAsync`, `IdentitiesAsync` |
+| `ReachFrequency`, `Studies`, `BudgetSchedules` | Meta reach and frequency, A/B tests, planned budget increases |
+| `Google` | Google reports: `SearchTermsAsync`, `RecommendationsAsync`, `KeywordsAsync`, `AssetsAsync`, `SharedBudgetsAsync`, `BidStrategiesAsync`, `AdScheduleAsync`, `LabelsAsync`, `LocalServicesLeadsAsync` |
+
+On campaigns: `client.Ads.DuplicateAsync(id)` (a new draft), `client.Ads.BulkStatusAsync(ids, "paused")`, and `AdCampaignUpdateParams.Objective` / `.Settings` before a campaign starts. A draft network takes `AdDraftPlatform.Settings` (`AdNetworkSettings`: optimization, messaging, calls, lead form, Google, Meta) and `AdDraftTargeting.Networks` (`AdNetworkTargeting` per network).
+
+```csharp
+// Search an interest, then target it on Meta in a draft.
+var found = await client.Ads.Targeting.SearchAsync(new Dictionary<string, object?>
+{
+    ["ad_account_id"] = 51, ["type"] = "interest", ["q"] = "yoga",
+});
+var item = found!.Value.GetProperty("data").GetProperty("items")[0];
+var targeting = new AdDraftTargeting
+{
+    Countries = new[] { "NL" },
+    Networks = new()
+    {
+        ["meta"] = new AdNetworkTargeting
+        {
+            Include = new() { ["interest"] = new() { new AdTargetingItem { Id = item.GetProperty("id").GetString()!, Name = item.GetProperty("name").GetString() } } },
+        },
+    },
+};
+
+// Pause one ad set made outside OmniSocials (no amount needed to pause).
+await client.Ads.Objects.SetStatusAsync(51, "ad_set", "23851", "paused");
+```
+
+The same money rule holds here: switching anything on (`Objects.SetStatusAsync`, `CampaignAds.SetStatusAsync`, `BulkStatusAsync` with "active"), adding ads to a running campaign (`CampaignAds.AddAsync`), a change of an object on the network (`Objects.UpdateAsync`, `Objects.DuplicateAsync`), a rule that can raise spend (`Rules.CreateAsync` and `Rules.UpdateAsync` with `confirm_max_daily_budget`, `Rules.UndoAsync`), a spend cap change (`Accounts.UpdateSettingsAsync`), a reach and frequency reservation (`ReachFrequency.ReserveAsync`), a study (`Studies.CreateAsync`) and a planned budget increase (`BudgetSchedules.CreateAsync`) need a key with `ads:spend` (else, and on Google always, `403 start_in_app`; a rule: `403 rule_raises_spend`). Each needs the amount from the person's explicit yes, and none of them is retried after a 5xx, a connection error or a timeout. Rules that notify, pause or lower a budget work with `ads:write`, and at run time a rule never acts on Google. Pausing, deleting and archiving stay open, except on Google.
 
 ## Webhooks
 
-Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`. `ad.status_changed` fires when an ad campaign changes status (for example `pending_review` to `active` or `rejected`); its `data` is the campaign, not a post, typed as `AdStatusChangedEventData` (`CampaignId`, `WorkspaceId`, `Name`, `Platform`, `CampaignType`, `Status`, `PreviousStatus`, `ExternalCampaignId`, `Budget`): `webhookEvent.GetProperty("data").Deserialize<AdStatusChangedEventData>()`.
+Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`. `ad.status_changed` fires when an ad campaign changes status (for example `pending_review` to `active` or `rejected`); its `data` is the campaign, not a post, typed as `AdStatusChangedEventData` (`CampaignId`, `WorkspaceId`, `Name`, `Platform`, `CampaignType`, `Status`, `PreviousStatus`, `ExternalCampaignId`, `Budget`): `webhookEvent.GetProperty("data").Deserialize<AdStatusChangedEventData>()`. More ad events: `ad.created`, `ad.updated`, `ad.review`, `ad.delivery_issue`, `campaign.created`, `campaign.updated`, `campaign.budget` (these carry the campaign plus `details`), `lead.received`, `ads.sync_failed`, `ads.sync_recovered`, `ads.initial_sync_completed` and `ad_rule.triggered`. Subscribing to `ad.status_changed` or any other Ads event (`ad.*`, `campaign.*`, `lead.*`, `ads.*`, `ad_rule.*`) needs the `ads:read` scope on the key and `access_ads` for its person (`403 insufficient_scope` / `insufficient_permission`).
 
 ### Manage endpoints
 
@@ -984,9 +1051,14 @@ await client.Webhooks.ListAsync();
 await client.Webhooks.GetAsync(webhookId);
 await client.Webhooks.UpdateAsync(webhookId, new WebhookUpdateParams { IsActive = false });
 var rotated = await client.Webhooks.RotateSecretAsync(webhookId);
-Console.WriteLine(rotated!.Value.GetProperty("data").GetProperty("secret")); // the old secret stops working
+Console.WriteLine(rotated!.Value.GetProperty("data").GetProperty("secret")); // the old secret keeps signing for 24 hours
 await client.Webhooks.DeleteAsync(webhookId);
+
+// Optional typed models: Webhook, WebhookFailure, WebhookResponse, WebhookListResponse
+var hooks = (await client.Webhooks.ListAsync())!.Value.Deserialize<WebhookListResponse>()!.Data;
 ```
+
+Every webhook carries `workspace_id` (`Webhook.WorkspaceId`). `ListAsync` and `GetAsync` also return the organisation-wide webhooks of the key's organisation (`workspace_id` null, made in the OmniSocials dashboard; they receive the events of every workspace), and `UpdateAsync`, `DeleteAsync` and `RotateSecretAsync` work on them too. Webhooks you create through the API belong to the key's workspace. When the person behind a webhook loses access to the organisation or workspace, OmniSocials switches the webhook off: `is_active` is false and `last_failure.error` says why. `UpdateAsync(id, new WebhookUpdateParams { IsActive = true })` switches it on again.
 
 ### Verify deliveries (ASP.NET Core minimal API example)
 
@@ -1037,6 +1109,31 @@ app.Run();
 ```
 
 `WebhookSignature.Verify` uses a constant-time comparison (`CryptographicOperations.FixedTimeEquals`), rejects timestamps older than `toleranceSeconds` (replay protection), throws `WebhookVerificationException` on any failure, and returns the parsed event as a `JsonElement` on success.
+
+### Rotate the secret without missing deliveries
+
+For 24 hours after `RotateSecretAsync`, every delivery carries two headers: `X-OmniSocials-Signature`, signed with the new secret, and `X-OmniSocials-Signature-Previous`, signed with the old secret (same format, same timestamp and body). Verify the first with the new secret and, when that fails, the second with the old one:
+
+```csharp
+static JsonElement VerifyDelivery(string payload, IHeaderDictionary headers, string newSecret, string oldSecret)
+{
+    try
+    {
+        return WebhookSignature.Verify(payload, headers["X-OmniSocials-Signature"].ToString(), newSecret);
+    }
+    catch (WebhookVerificationException)
+    {
+        var previous = headers["X-OmniSocials-Signature-Previous"].ToString();
+        if (string.IsNullOrEmpty(previous))
+        {
+            throw;
+        }
+        return WebhookSignature.Verify(payload, previous, oldSecret);
+    }
+}
+```
+
+Rotating again within the 24 hours replaces the previous secret with the one you just rotated out.
 
 ## Limits and feature requests
 
@@ -1126,7 +1223,7 @@ catch (ApiException ex)
 
 ## API scopes
 
-Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations and `ads:read` / `ads:write` for ads. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
+Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations `ads:read` / `ads:write` for ads, and `ads:spend` (the **Start ads** switch) to start ads and raise their spend. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
 
 ## Documentation
 

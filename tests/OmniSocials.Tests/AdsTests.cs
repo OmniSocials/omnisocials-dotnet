@@ -252,4 +252,237 @@ public class AdsTests
         var schedule = Parse(handler.RequestBodies[0]!).GetProperty("schedule");
         Assert.Equal(JsonValueKind.Null, schedule.GetProperty("duration_days").ValueKind);
     }
+
+    // ─── Ads API parity (2026-11-05) ─────────────────────────────────────────
+
+    [Fact]
+    public async Task Parity_calls_send_the_right_requests()
+    {
+        var handler = new StubHttpMessageHandler();
+        for (var i = 0; i < 24; i++) handler.Enqueue(HttpStatusCode.OK, "{\"data\":{}}");
+        using var client = CreateClient(handler);
+        var ads = client.Ads;
+
+        await ads.Objects.TreeAsync(12, new Dictionary<string, object?> { ["from"] = "2026-10-01", ["status"] = new[] { "active", "paused" }, ["limit"] = 50 });
+        await ads.Objects.GetAsync(12, "ad_set", "23851/1");
+        await ads.Objects.SetStatusAsync(12, "ad", "9", "paused");
+        await ads.Objects.SetStatusAsync(12, "campaign", "238", "active", 25m);
+        await ads.Objects.StartImportAsync(12);
+        await ads.BulkStatusAsync(new long[] { 7, 8 }, "active", 10m);
+        await ads.CampaignAds.AddAsync(7, new[] { new AdDraftAd { PrimaryText = "Hi", Link = "https://example.com" } });
+        await ads.CampaignAds.SetStatusAsync(7, 41, "active", 10m);
+        await ads.Previews.ForAdAsync(7, 41, new[] { "feed", "story" });
+        await ads.Targeting.SearchAsync(new Dictionary<string, object?> { ["ad_account_id"] = 12, ["type"] = "interest", ["q"] = "yoga" });
+        await ads.Audiences.GetAsync("aud 1", 12);
+        await ads.Audiences.RemoveMembersAsync("aud-1", new AdAudienceMembersParams
+        {
+            AdAccountId = 12,
+            Schema = new[] { "email" },
+            Rows = new[] { new[] { "a@example.com" } },
+        });
+        await ads.LeadForms.ListAsync(12);
+        await ads.Insights.CampaignAsync(7, new Dictionary<string, object?> { ["breakdown"] = "ad", ["metrics"] = new List<string> { "spend", "clicks" } });
+        await ads.Rules.UndoAsync(3, 20m);
+        await ads.Rules.PreviewSavedAsync(4);
+        await ads.Results.PutMetricAsync("revenue", new { label = "Revenue" });
+        await ads.Media.DeleteAsync("abc", new Dictionary<string, object?> { ["ad_account_id"] = 12, ["type"] = "image" });
+        await ads.Comments.HideAsync(7, 41, "c:1", hidden: false);
+        await ads.Accounts.UpdateSettingsAsync(12, new Dictionary<string, object?> { ["spend_cap"] = null, ["confirm_budget_amount"] = "remove" });
+        await ads.ReachFrequency.ReserveAsync("rf1", 12, 500m);
+        await ads.ReachFrequency.CancelAsync("rf1", 12);
+        await ads.BudgetSchedules.CreateAsync(7, new AdBudgetScheduleParams
+        {
+            StartAt = "2026-11-27T00:00:00Z",
+            EndAt = "2026-11-30T00:00:00Z",
+            BudgetIncrease = new AdBudgetIncrease { Type = "absolute", Value = 20m },
+            ConfirmBudgetAmount = 20m,
+        });
+        await ads.Google.SearchTermsAsync(new Dictionary<string, object?> { ["ad_account_id"] = 12L, ["limit"] = 20, ["active"] = true });
+
+        var expected = new (string Method, string Path, string? Body)[]
+        {
+            ("GET", "/ads/accounts/12/tree?from=2026-10-01&status=active%2Cpaused&limit=50", null),
+            ("GET", "/ads/accounts/12/objects/ad_set/23851%2F1", null),
+            ("PUT", "/ads/accounts/12/objects/ad/9/status", "{\"status\":\"paused\"}"),
+            ("PUT", "/ads/accounts/12/objects/campaign/238/status", "{\"status\":\"active\",\"confirm_budget_amount\":25}"),
+            ("POST", "/ads/accounts/12/import", null),
+            ("POST", "/ads/campaigns/bulk-status", "{\"campaign_ids\":[7,8],\"status\":\"active\",\"confirm_budget_amount\":10}"),
+            ("POST", "/ads/campaigns/7/ads", "{\"ads\":[{\"media\":[],\"primary_text\":\"Hi\",\"link\":\"https://example.com\"}]}"),
+            ("PUT", "/ads/campaigns/7/ads/41/status", "{\"status\":\"active\",\"confirm_budget_amount\":10}"),
+            ("GET", "/ads/campaigns/7/ads/41/previews?placements=feed%2Cstory", null),
+            ("GET", "/ads/targeting/search?ad_account_id=12&type=interest&q=yoga", null),
+            ("GET", "/ads/audiences/aud%201?ad_account_id=12", null),
+            ("DELETE", "/ads/audiences/aud-1/members", "{\"ad_account_id\":12,\"schema\":[\"email\"],\"rows\":[[\"a@example.com\"]]}"),
+            ("GET", "/ads/lead-forms?ad_account_id=12", null),
+            ("GET", "/ads/campaigns/7/analytics?breakdown=ad&metrics=spend%2Cclicks", null),
+            ("POST", "/ads/rules/activity/3/undo", "{\"confirm_budget_amount\":20}"),
+            ("POST", "/ads/rules/4/preview", null),
+            ("PUT", "/ads/campaign-results/metrics/revenue", "{\"label\":\"Revenue\"}"),
+            ("DELETE", "/ads/media/abc?ad_account_id=12&type=image", null),
+            ("POST", "/ads/campaigns/7/ads/41/comments/c%3A1/hide", "{\"hidden\":false}"),
+            ("PATCH", "/ads/accounts/12/settings", "{\"spend_cap\":null,\"confirm_budget_amount\":\"remove\"}"),
+            ("POST", "/ads/reach-frequency/rf1/reserve", "{\"ad_account_id\":12,\"confirm_budget_amount\":500}"),
+            ("DELETE", "/ads/reach-frequency/rf1?ad_account_id=12", null),
+            ("POST", "/ads/campaigns/7/budget-schedules",
+                "{\"start_at\":\"2026-11-27T00:00:00Z\",\"end_at\":\"2026-11-30T00:00:00Z\",\"budget_increase\":{\"type\":\"absolute\",\"value\":20},\"confirm_budget_amount\":20}"),
+            ("GET", "/ads/google/search-terms?ad_account_id=12&limit=20&active=true", null),
+        };
+        Assert.Equal(expected.Length, handler.Requests.Count);
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i].Method, handler.Requests[i].Method.Method);
+            Assert.Equal(expected[i].Path, Path(handler, i));
+            Assert.Equal(expected[i].Body, handler.RequestBodies[i]);
+        }
+    }
+
+    [Fact]
+    public async Task Parity_money_calls_are_sent_once_after_a_502()
+    {
+        var handler = new StubHttpMessageHandler();
+        for (var i = 0; i < 10; i++) handler.Enqueue(HttpStatusCode.BadGateway, BadGateway, headers: RetryNow);
+        using var client = CreateClient(handler);
+        var ads = client.Ads;
+
+        var moneyCalls = new Func<Task>[]
+        {
+            () => ads.Objects.UpdateAsync(12, "campaign", "238", new { confirm_budget_amount = 30 }),
+            () => ads.Objects.SetStatusAsync(12, "campaign", "238", "active", 25m),
+            () => ads.BulkStatusAsync(new long[] { 7, 8 }, "active", 10m),
+            () => ads.CampaignAds.SetStatusAsync(7, 41, "active", 10m),
+            () => ads.Rules.CreateAsync(new { name = "Raise", confirm_max_daily_budget = 50 }),
+            () => ads.Rules.UpdateAsync(4, new { enabled = true }),
+            () => ads.Rules.UndoAsync(3, 20m),
+            () => ads.Accounts.UpdateSettingsAsync(12, new { spend_cap = 900, confirm_budget_amount = 900 }),
+            () => ads.ReachFrequency.ReserveAsync("rf1", 12, 500m),
+            () => ads.BudgetSchedules.CreateAsync(7, new { confirm_budget_amount = 20 }),
+        };
+        for (var i = 0; i < moneyCalls.Length; i++)
+        {
+            await Assert.ThrowsAsync<ServerException>(moneyCalls[i]);
+            Assert.Equal(i + 1, handler.Requests.Count); // each money call is sent once
+        }
+    }
+
+    [Fact]
+    public async Task A_parity_read_is_retried_after_a_502()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.BadGateway, BadGateway, headers: RetryNow);
+        handler.Enqueue(HttpStatusCode.OK,
+            "{\"data\":{\"campaigns\":[{\"level\":\"campaign\",\"external_id\":\"238\",\"name\":\"Spring\",\"status\":\"active\"," +
+            "\"source\":\"external\",\"campaign_id\":null,\"metrics\":{\"spend\":12.5,\"ctr\":1.4,\"leads\":null}," +
+            "\"children\":[{\"level\":\"ad_set\",\"external_id\":\"239\",\"status\":\"paused\"}]}],\"next_cursor\":null,\"currency\":\"EUR\"}}");
+        using var client = CreateClient(handler);
+
+        var tree = await client.Ads.Objects.TreeAsync(12);
+
+        Assert.Equal(2, handler.Requests.Count);
+        var node = tree!.Value.GetProperty("data").GetProperty("campaigns")[0].Deserialize<AdTreeNode>()!;
+        Assert.Equal("external", node.Source);
+        Assert.Equal(12.5m, node.Metrics!.Spend);
+        Assert.Null(node.Metrics.Leads);
+        Assert.Equal("ad_set", node.Children![0].Level);
+    }
+
+    [Fact]
+    public async Task Drafts_and_campaigns_carry_network_targeting_and_settings()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{}}");
+        using var client = CreateClient(handler);
+
+        var draft = Draft();
+        draft.Objective = "lead_generation";
+        draft.Platforms = new object[]
+        {
+            new AdDraftPlatform { Platform = "meta", Settings = new AdNetworkSettings { LeadFormId = "lf-9", Meta = new AdMetaSettings { BudgetLevel = "campaign" } } },
+        };
+        draft.Targeting.Networks = new Dictionary<string, AdNetworkTargeting>
+        {
+            ["meta"] = new()
+            {
+                Include = new() { ["interest"] = new() { new AdTargetingItem { Id = "6003", Name = "Yoga" } } },
+                Audiences = new AdAudienceSelection { Exclude = new() { new AdTargetingItem { Id = "aud-1" } } },
+            },
+        };
+        await client.Ads.Drafts.CreateAsync(draft);
+        await client.Ads.UpdateAsync(7, new AdCampaignUpdateParams
+        {
+            Objective = "conversions",
+            Targeting = new Dictionary<string, object?> { ["countries"] = new[] { "NL" }, ["network"] = new AdNetworkTargeting { Include = new() { ["location"] = new() { new AdTargetingItem { Id = "2759794", RadiusKm = 25 } } } } },
+            Settings = new AdNetworkSettings
+            {
+                Optimization = new AdOptimizationSettings
+                {
+                    Conversion = new AdConversionTarget { DestinationId = "px1", Event = "PURCHASE" },
+                    Bidding = new AdBiddingSettings { Strategy = "cost_cap", Amount = 4.5m },
+                },
+            },
+        });
+
+        var sentDraft = Parse(handler.RequestBodies[0]!);
+        Assert.Equal("lead_generation", sentDraft.GetProperty("objective").GetString());
+        var settings = sentDraft.GetProperty("platforms")[0].GetProperty("settings");
+        Assert.Equal("lf-9", settings.GetProperty("lead_form_id").GetString());
+        Assert.Equal("campaign", settings.GetProperty("meta").GetProperty("budget_level").GetString());
+        Assert.False(settings.TryGetProperty("messaging", out _)); // nulls are left out
+        var meta = sentDraft.GetProperty("targeting").GetProperty("networks").GetProperty("meta");
+        Assert.Equal("6003", meta.GetProperty("include").GetProperty("interest")[0].GetProperty("id").GetString());
+        Assert.Equal("aud-1", meta.GetProperty("audiences").GetProperty("exclude")[0].GetProperty("id").GetString());
+
+        var sentCampaign = Parse(handler.RequestBodies[1]!);
+        Assert.Equal(25, sentCampaign.GetProperty("targeting").GetProperty("network").GetProperty("include").GetProperty("location")[0].GetProperty("radius_km").GetInt32());
+        Assert.Equal("cost_cap", sentCampaign.GetProperty("settings").GetProperty("optimization").GetProperty("bidding").GetProperty("strategy").GetString());
+        Assert.Equal(4.5m, sentCampaign.GetProperty("settings").GetProperty("optimization").GetProperty("bidding").GetProperty("amount").GetDecimal());
+    }
+
+    [Fact]
+    public void Typed_capabilities_read_the_parity_fields()
+    {
+        var caps = Parse(
+            "{\"networks\":[{\"key\":\"meta\",\"bid_strategies\":[\"lowest_cost\"]}],\"goals\":[\"traffic\"]," +
+            "\"api_goals\":[\"lead_generation\",\"conversions\",\"messages\",\"calls\"],\"create_networks\":[\"meta\"]," +
+            "\"network_states\":{\"meta\":\"live\"},\"api_draft_only\":[\"google\"],\"api_stop_in_app\":[\"google\"],\"features\":{\"meta\":[\"tree\",\"audiences\"]}," +
+            "\"feature_labels\":{\"tree\":\"Campaigns, ad sets and ads\"},\"targeting_types\":{\"meta\":[\"interest\",\"location\"]}}")
+            .Deserialize<AdCapabilities>()!;
+
+        Assert.Equal(4, caps.ApiGoals!.Count);
+        Assert.Contains("audiences", caps.Features!["meta"]);
+        Assert.Equal("location", caps.TargetingTypes!["meta"][1]);
+        Assert.Equal("live", caps.NetworkStates!["meta"]);
+        Assert.Equal("google", caps.ApiDraftOnly![0]);
+        Assert.Equal("google", caps.ApiStopInApp![0]);
+        Assert.Equal("lowest_cost", caps.Networks[0].GetProperty("bid_strategies")[0].GetString());
+    }
+
+    [Fact]
+    public void Ads_has_no_create_campaign_method()
+    {
+        // POST /ads/campaigns is gone: campaigns without ads could never start.
+        Assert.Null(typeof(AdsResource).GetMethod("CreateAsync"));
+    }
+
+    [Fact]
+    public void Overview_reads_a_null_spend_and_the_totals_per_currency()
+    {
+        var overview = Parse(
+            "{\"connected_accounts\":2,\"campaigns_total\":3,\"campaigns_by_status\":{\"active\":2}," +
+            "\"totals\":{\"spend\":null,\"currency\":null,\"impressions\":3000,\"clicks\":40}," +
+            "\"totals_by_currency\":[{\"currency\":\"EUR\",\"spend\":10.5,\"impressions\":1000,\"clicks\":15}," +
+            "{\"currency\":\"JPY\",\"spend\":\"1500\",\"impressions\":2000,\"clicks\":25}]}");
+
+        var typed = overview.Deserialize<AdsOverview>()!;
+
+        Assert.Null(typed.Totals.Spend);
+        Assert.Null(typed.Totals.Currency);
+        Assert.Equal(3000m, typed.Totals.Impressions);
+        Assert.Equal(2, typed.TotalsByCurrency.Count);
+        Assert.Equal("JPY", typed.TotalsByCurrency[1].Currency);
+        Assert.Equal(1500m, typed.TotalsByCurrency[1].Spend);
+
+        var single = Parse("{\"totals\":{\"spend\":12.5,\"currency\":\"EUR\",\"impressions\":10,\"clicks\":1},\"totals_by_currency\":[]}");
+        Assert.Equal(12.5m, single.Deserialize<AdsOverview>()!.Totals.Spend);
+    }
 }

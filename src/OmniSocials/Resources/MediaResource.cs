@@ -91,7 +91,9 @@ public sealed class MediaResource
     /// <summary>
     /// <c>POST /media/upload-from-url</c>: the server fetches a public URL
     /// (files up to 1GB; large videos finish processing in the background and
-    /// come back with status "processing").
+    /// come back with status "processing"). A file over 100 MB that could not
+    /// be queued for processing answers <c>503 processing_unavailable</c>: send
+    /// the same request again in a minute.
     /// </summary>
     public Task<JsonElement?> UploadFromUrlAsync(MediaUploadFromUrlParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync("/media/upload-from-url", parameters, cancellationToken);

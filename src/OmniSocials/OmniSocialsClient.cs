@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.15.0";
+    public const string Version = "0.16.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
@@ -183,10 +183,51 @@ public sealed class OmniSocialsClient : IDisposable
         CancellationToken cancellationToken)
         => RequestAsync(HttpMethod.Put, path, null, body, null, cancellationToken);
 
+    /// <summary>PUT retried as <paramref name="retry"/> says.</summary>
+    internal Task<JsonElement?> PutAsync(
+        string path,
+        object body,
+        RetryPolicy retry,
+        CancellationToken cancellationToken)
+        => RequestAsync(HttpMethod.Put, path, null, body, null, cancellationToken, retry);
+
     internal Task<JsonElement?> DeleteAsync(
         string path,
         CancellationToken cancellationToken)
         => RequestAsync(HttpMethod.Delete, path, null, null, null, cancellationToken);
+
+    /// <summary>DELETE with query params and/or a JSON body (removing people from a customer list).</summary>
+    internal Task<JsonElement?> DeleteAsync(
+        string path,
+        IReadOnlyList<KeyValuePair<string, string?>>? query,
+        object? body,
+        CancellationToken cancellationToken)
+        => RequestAsync(HttpMethod.Delete, path, query, body, null, cancellationToken);
+
+    /// <summary>
+    /// Query params from a loose dictionary: numbers and dates in the invariant
+    /// culture, booleans as <c>true</c> / <c>false</c>, a list as a comma list,
+    /// nulls left out.
+    /// </summary>
+    internal static IReadOnlyList<KeyValuePair<string, string?>>? ToQuery(IReadOnlyDictionary<string, object?>? query)
+    {
+        if (query is null) return null;
+        var list = new List<KeyValuePair<string, string?>>(query.Count);
+        foreach (var (key, value) in query) list.Add(new(key, QueryValue(value)));
+        return list;
+    }
+
+    private static string? QueryValue(object? value) => value switch
+    {
+        null => null,
+        string s => s,
+        bool b => b ? "true" : "false",
+        JsonElement { ValueKind: JsonValueKind.String } e => e.GetString(),
+        JsonElement e => e.GetRawText(),
+        IFormattable f => f.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+        System.Collections.IEnumerable items => string.Join(",", items.Cast<object?>().Select(QueryValue).Where(v => v is not null)),
+        _ => value.ToString(),
+    };
 
     /// <summary>
     /// Core request loop: builds the URL, sends the request with a per-attempt

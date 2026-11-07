@@ -40,6 +40,20 @@ public class WebhookSignatureTests
     }
 
     [Fact]
+    public void Previous_header_verifies_with_the_old_secret()
+    {
+        // For 24 hours after a secret rotation a delivery also carries
+        // X-OmniSocials-Signature-Previous: the same scheme, signed with the
+        // OLD secret. The new secret fails on it; the old secret verifies it.
+        const string oldSecret = "whsec_test_old_secret";
+        var previous = Sign(oldSecret, Now(), Payload);
+
+        Assert.Throws<WebhookVerificationException>(() => WebhookSignature.Verify(Payload, previous, Secret));
+        var evt = WebhookSignature.Verify(Payload, previous, oldSecret);
+        Assert.Equal("evt_1", evt.GetProperty("id").GetString());
+    }
+
+    [Fact]
     public void Rejected_event_keeps_its_approval_object()
     {
         const string payload =
