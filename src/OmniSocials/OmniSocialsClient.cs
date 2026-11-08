@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.16.0";
+    public const string Version = "0.17.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
@@ -342,8 +342,22 @@ public sealed class OmniSocialsClient : IDisposable
 
     private string BuildUrl(string path, IReadOnlyList<KeyValuePair<string, string?>>? query)
     {
+        if (!path.StartsWith('/')) path = "/" + path;
+        // Every id in the path was encoded with Uri.EscapeDataString, which
+        // leaves "." and ".." as they are: URL normalisation (System.Uri does
+        // it) drops such a segment or climbs one level, so an id of ".." would
+        // reach another endpoint of the same API key, and an empty id the list
+        // route. Refused before anything is sent.
+        var segments = path.Split('?', 2)[0].Split('/');
+        for (var i = 1; i < segments.Length; i++)
+        {
+            if (segments[i] is "" or "." or "..")
+            {
+                throw new ArgumentException(
+                    $"Invalid request path \"{path}\": an id cannot be empty, \".\" or \"..\".", nameof(path));
+            }
+        }
         var sb = new StringBuilder(BaseUrl);
-        if (!path.StartsWith('/')) sb.Append('/');
         sb.Append(path);
         if (query is not null)
         {

@@ -53,7 +53,13 @@ public sealed class WebhooksResource
     /// Works on organisation-wide webhooks too. <c>IsActive = true</c>
     /// switches on a webhook that was switched off (also an automatic
     /// switch-off); setting the URL, the events or switching it on makes the
-    /// key's creator the person behind the webhook.
+    /// key's creator the person behind the webhook. Setting the URL on an
+    /// organisation-wide webhook (even its current one) moves it to the
+    /// key's workspace: from then on it gets only that workspace's events,
+    /// and the answer shows the new <c>workspace_id</c>. When the webhook has
+    /// Ads events after the change, setting the URL or the events or
+    /// switching it on needs the <c>ads:read</c> scope and <c>access_ads</c>
+    /// for the key's creator (403 otherwise, nothing changed).
     /// </summary>
     public Task<JsonElement?> UpdateAsync(string id, WebhookUpdateParams parameters, CancellationToken cancellationToken = default)
         => _client.PatchAsync($"/webhooks/{Uri.EscapeDataString(id)}", parameters, cancellationToken);

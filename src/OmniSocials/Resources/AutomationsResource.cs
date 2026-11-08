@@ -121,7 +121,9 @@ public sealed class AutomationsResource
     /// no events is left out). Each event carries <c>kind</c> ("comment",
     /// "dm", "story_reply"), <c>outcome</c>, <c>reason</c> /
     /// <c>reason_label</c> (X adds the skip reasons "dms_closed", "no_credits",
-    /// "opted_out" and "automation_off"; Follow first adds "already_waiting"),
+    /// "opted_out" and "automation_off"; Follow first adds "already_waiting";
+    /// "plan_inactive" = the organisation had no active plan or trial, so
+    /// nothing was sent),
     /// <c>person</c> (<c>id</c>, <c>username</c>; on
     /// Facebook the person's name, since Facebook has no @handle),
     /// <c>trigger_id</c>, <c>trigger_text</c>, <c>message</c> (the DM sent),
