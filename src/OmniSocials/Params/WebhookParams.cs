@@ -15,7 +15,11 @@ public class WebhookCreateParams
     /// campaign, see <see cref="AdStatusChangedEventData"/>), ad.created,
     /// ad.updated, ad.review, ad.delivery_issue, campaign.created,
     /// campaign.updated, campaign.budget, lead.received, ads.sync_failed,
-    /// ads.sync_recovered, ads.initial_sync_completed, ad_rule.triggered. Any Ads
+    /// ads.sync_recovered, ads.initial_sync_completed, ad_rule.triggered, and
+    /// x_statistics.paused / x_statistics.resumed (the organisation's X
+    /// statistics stopped at 0 credits or started again after a top-up; its
+    /// <c>data</c> is <see cref="XStatisticsEventData"/>, names in
+    /// <see cref="XStatisticsWebhookEvents"/>). Any Ads
     /// event (ad.*, campaign.*, lead.*, ads.*, ad_rule.*) needs the
     /// <c>ads:read</c> scope on the key and <c>access_ads</c> for its person,
     /// else <c>403 insufficient_scope</c> / <c>insufficient_permission</c>.

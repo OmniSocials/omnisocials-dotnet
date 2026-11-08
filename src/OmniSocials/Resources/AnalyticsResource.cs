@@ -14,6 +14,31 @@ public sealed class AnalyticsResource
         => _client.GetAsync($"/analytics/posts/{Uri.EscapeDataString(postId)}", null, cancellationToken);
 
     /// <summary>
+    /// <c>POST /analytics/posts/:id/refresh</c> ("Update now"): read the X numbers
+    /// of one published post now, outside its check schedule. X bills every read,
+    /// so it costs half a credit per tweet (each part of a thread counts, plus
+    /// half a credit for a video or GIF), and nothing when the post was already
+    /// read today (UTC). OmniSocials Connect accounts pay on the partner's own X
+    /// app. At most 5 reads of a post a UTC day. Needs <c>analytics:read</c>.
+    /// Because it can cost credits it is retried only after a 429, never after a
+    /// 5xx, a connection error or a timeout. Errors: <c>402
+    /// insufficient_credits</c>, <c>404 not_found</c>, <c>409
+    /// refresh_not_available</c> (no published X tweet), <c>429
+    /// refresh_limit</c>, <c>502 refresh_failed</c> (nothing charged). Typed
+    /// model: <see cref="PostRefreshResponse"/>.
+    /// </summary>
+    public Task<JsonElement?> RefreshPostAsync(string postId, CancellationToken cancellationToken = default)
+        => _client.PostAsync(
+            $"/analytics/posts/{Uri.EscapeDataString(postId)}/refresh",
+            null,
+            RetryPolicy.RateLimitOnly,
+            cancellationToken);
+
+    /// <summary><see cref="RefreshPostAsync(string, CancellationToken)"/> with a numeric post id.</summary>
+    public Task<JsonElement?> RefreshPostAsync(long postId, CancellationToken cancellationToken = default)
+        => RefreshPostAsync(postId.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
+
+    /// <summary>
     /// <c>GET /analytics/posts?ids=a,b,c</c>: batch metrics for up to 100 posts
     /// in one call instead of one request per post.
     /// </summary>

@@ -20,7 +20,7 @@ namespace OmniSocials;
 public sealed class OmniSocialsClient : IDisposable
 {
     /// <summary>SDK version, also sent as the User-Agent.</summary>
-    public const string Version = "0.17.0";
+    public const string Version = "0.18.0";
 
     internal const string UserAgent = "omnisocials-dotnet/" + Version;
 
@@ -60,6 +60,10 @@ public sealed class OmniSocialsClient : IDisposable
     public ApprovalWorkflowsResource ApprovalWorkflows { get; }
     public AccountsResource Accounts { get; }
     public AnalyticsResource Analytics { get; }
+
+    /// <summary>The organisation's credit balance and what X statistics cost (scope <c>credits:read</c>).</summary>
+    public CreditsResource Credits { get; }
+
     public AudioResource Audio { get; }
     public LocationsResource Locations { get; }
     public PinterestResource Pinterest { get; }
@@ -117,6 +121,7 @@ public sealed class OmniSocialsClient : IDisposable
         ApprovalWorkflows = new ApprovalWorkflowsResource(this);
         Accounts = new AccountsResource(this);
         Analytics = new AnalyticsResource(this);
+        Credits = new CreditsResource(this);
         Audio = new AudioResource(this);
         Locations = new LocationsResource(this);
         Pinterest = new PinterestResource(this);

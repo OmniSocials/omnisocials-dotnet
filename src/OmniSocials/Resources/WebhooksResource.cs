@@ -36,7 +36,9 @@ public sealed class WebhooksResource
     /// post.rejected, and for ads ad.status_changed, ad.created, ad.updated,
     /// ad.review, ad.delivery_issue, campaign.created, campaign.updated,
     /// campaign.budget, lead.received, ads.sync_failed, ads.sync_recovered,
-    /// ads.initial_sync_completed, ad_rule.triggered). The <c>data</c> of an
+    /// ads.initial_sync_completed, ad_rule.triggered, and for X statistics
+    /// x_statistics.paused and x_statistics.resumed, whose <c>data</c> is
+    /// <see cref="XStatisticsEventData"/>). The <c>data</c> of an
     /// <c>ad.status_changed</c> delivery is the campaign, not a post (see
     /// <see cref="AdStatusChangedEventData"/>); the other campaign events carry
     /// the campaign plus <c>details</c>, the rest their own <c>data</c>. Any Ads

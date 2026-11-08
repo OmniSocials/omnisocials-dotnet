@@ -368,7 +368,7 @@ if (res!.Value.TryGetProperty("warnings", out var warnings))
 }
 ```
 
-From `enforce_from` (2026-08-14) the balance is checked at publish time, but credits are only deducted after the post successfully publishes (a failed publish is never charged). If the balance can't cover it, only the X target fails (other platforms publish normally); top up in the dashboard under Settings -> Organisation -> Billing -> Credits, then call `Posts.RetryAsync`. Posts without links, analytics, and media on X stay free. There is no API endpoint for credits — they are managed in the dashboard.
+From `enforce_from` (2026-08-14) the balance is checked at publish time, but credits are only deducted after the post successfully publishes (a failed publish is never charged). If the balance can't cover it, only the X target fails (other platforms publish normally); top up in the dashboard under Settings -> Organisation -> Billing -> Credits, then call `Posts.RetryAsync`. Posts without links and media on X stay free. X statistics use credits too, at X's price (see [X statistics use credits](#x-statistics-use-credits)). `client.Credits.GetAsync()` reads the balance; top-ups are made in the dashboard.
 
 Separately, scheduling an X link post reserves its credit cost up front: `Posts.CreateAsync`, `UpdateAsync`, and `PublishAsync` now refuse before the request is even accepted if reserving that post's cost would push the company's total reserved credits past its balance. That throws a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with `Code` `"x_credits_insufficient"` and `Body` carrying `error.details.credits_required` / `credits_balance` / `credits_reserved`:
 
@@ -674,6 +674,8 @@ foreach (var account in accounts!.Value.GetProperty("data").EnumerateArray())
 
 `status` is `active` or `needs_reconnect` (the token was revoked or expired; Bluesky also when its sign-in could not be renewed). Posts to a `needs_reconnect` account fail until it is reconnected in the OmniSocials app. OmniSocials Connect customer workspaces can also show `pick_pending` (Facebook, Connect customers only: no Page chosen yet).
 
+An X account also carries `x_statistics` (`posts`, `followers`, `post_schedule`, `source`, `billing`, `state`, `paused_reason`): how often OmniSocials reads its X statistics and who pays. `client.Accounts.UpdateAsync(id, new AccountUpdateParams { ... })` changes it; see [X statistics use credits](#x-statistics-use-credits).
+
 ## Analytics
 
 ```csharp
@@ -708,6 +710,36 @@ foreach (var slot in best!.Value.GetProperty("recommendations").EnumerateArray()
     Console.WriteLine($"{slot.GetProperty("day")} {slot.GetProperty("time")}");
 }
 ```
+
+### X statistics use credits
+
+X bills every statistics read, and OmniSocials passes X's price on as credits: half a credit per post check (plus half a credit when the tweet has a video or GIF; each part of a thread counts) and 1 credit per follower count. Every X account carries `x_statistics`:
+
+- `posts`: how often each post is checked. `full` (5 checks: about 5 hours, day 1, 3 and 7, and day 30 for posts with 100+ views), `light` (2 checks: about 5 hours and day 7) or `off`.
+- `followers`: how often the follower count is read. `daily`, `weekly` or `off`.
+- `source` (`account` or `default`), `billing` (`credits`), `state` (`active`, `paused`, `off`) and `paused_reason` (`insufficient_credits` or null).
+
+When the balance reaches 0 the reads pause (`state` `paused`) and start again by themselves after a top-up; the webhook events `x_statistics.paused` and `x_statistics.resumed` say so. `x_statistics.charging` in the answer of `client.Credits.GetAsync()` says whether reads are charged yet and from when.
+
+```csharp
+// How often an X account is checked (opt-in scope accounts:write, billing rights)
+var account = await client.Accounts.UpdateAsync("1234_x", new AccountUpdateParams
+{
+    XStatistics = new XStatisticsInput { Posts = "light", Followers = "daily" }, // one property or both
+});
+var x = account!.Value.GetProperty("data").GetProperty("x_statistics").Deserialize<AccountXStatistics>()!;
+Console.WriteLine(x.State);
+
+// "Update now": read one post's X numbers now (scope analytics:read)
+var fresh = (await client.Analytics.RefreshPostAsync(9123))!.Value.Deserialize<PostRefreshResponse>()!.Data;
+Console.WriteLine($"{fresh.CreditsUsed} credits, {fresh.Tweets.Count} tweets");
+
+// The balance and what X statistics cost (opt-in scope credits:read, billing rights)
+var credits = (await client.Credits.GetAsync())!.Value.Deserialize<CreditsResponse>()!.Data;
+Console.WriteLine($"{credits.Balance} credits, {credits.XStatistics.TotalCreditsMonth} a month for X statistics");
+```
+
+`Analytics.RefreshPostAsync` costs nothing when the post was already read that day (UTC) and works at most 5 times a post and 100 times an organisation a day. Errors: `402 insufficient_credits`, `409 refresh_not_available` (no published X tweet), `429 refresh_limit`, `502 refresh_failed` (nothing charged). Because it can cost credits, the SDK retries it only after a 429, never after a 5xx or a timeout. `Accounts.UpdateAsync` needs the opt-in scope `accounts:write` and billing rights (manage_billing) for the key's creator, sends only the keys you give, and answers `400 validation_error`, `invalid_value` or `not_supported` (not an X account) and `403 insufficient_permission` (no billing rights for the key's creator). `Credits.GetAsync` needs the opt-in scope `credits:read` and billing rights. The typed models are optional: `AccountXStatistics`, `PostRefreshResponse`, `CreditsResponse`.
 
 ## Locations (Instagram and Threads place tagging)
 
@@ -1033,7 +1065,7 @@ The same money rule holds here: switching anything on (`Objects.SetStatusAsync`,
 
 ## Webhooks
 
-Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`. `ad.status_changed` fires when an ad campaign changes status (for example `pending_review` to `active` or `rejected`); its `data` is the campaign, not a post, typed as `AdStatusChangedEventData` (`CampaignId`, `WorkspaceId`, `Name`, `Platform`, `CampaignType`, `Status`, `PreviousStatus`, `ExternalCampaignId`, `Budget`): `webhookEvent.GetProperty("data").Deserialize<AdStatusChangedEventData>()`. More ad events: `ad.created`, `ad.updated`, `ad.review`, `ad.delivery_issue`, `campaign.created`, `campaign.updated`, `campaign.budget` (these carry the campaign plus `details`), `lead.received`, `ads.sync_failed`, `ads.sync_recovered`, `ads.initial_sync_completed` and `ad_rule.triggered`. Subscribing to `ad.status_changed` or any other Ads event (`ad.*`, `campaign.*`, `lead.*`, `ads.*`, `ad_rule.*`) needs the `ads:read` scope on the key and `access_ads` for its person (`403 insufficient_scope` / `insufficient_permission`).
+Events: `post.scheduled`, `post.published`, `post.failed`, `post.approved` (the last step of a post's approval workflow is approved) and `post.rejected` (an approver rejects the post; it will not publish). The two approval events carry `data.approval` with `status`, `decided_by` (the approver's user id) and `reason` (null on `post.approved`), and an empty `data.targets`. `ad.status_changed` fires when an ad campaign changes status (for example `pending_review` to `active` or `rejected`); its `data` is the campaign, not a post, typed as `AdStatusChangedEventData` (`CampaignId`, `WorkspaceId`, `Name`, `Platform`, `CampaignType`, `Status`, `PreviousStatus`, `ExternalCampaignId`, `Budget`): `webhookEvent.GetProperty("data").Deserialize<AdStatusChangedEventData>()`. More ad events: `ad.created`, `ad.updated`, `ad.review`, `ad.delivery_issue`, `campaign.created`, `campaign.updated`, `campaign.budget` (these carry the campaign plus `details`), `lead.received`, `ads.sync_failed`, `ads.sync_recovered`, `ads.initial_sync_completed` and `ad_rule.triggered`. Subscribing to `ad.status_changed` or any other Ads event (`ad.*`, `campaign.*`, `lead.*`, `ads.*`, `ad_rule.*`) needs the `ads:read` scope on the key and `access_ads` for its person (`403 insufficient_scope` / `insufficient_permission`). `x_statistics.paused` and `x_statistics.resumed` fire when the organisation's X statistics stop at 0 credits or start again after a top-up, one delivery per workspace with X; `data` is `{ workspace_id, account_id, reason }` (`reason` is `insufficient_credits` or `credits_added`). `XStatisticsWebhookEvents` holds the names and `XStatisticsEventData` types the `data`.
 
 ### Manage endpoints
 
@@ -1223,7 +1255,7 @@ catch (ApiException ex)
 
 ## API scopes
 
-Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations `ads:read` / `ads:write` for ads, and `ads:spend` (the **Start ads** switch) to start ads and raise their spend. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
+Each API key carries scopes: `posts:read`, `posts:write`, `media:write`, `accounts:read`, `analytics:read`, `webhooks:manage`, plus the opt-in `automations:read` / `automations:write` for comment-to-DM automations, `ads:read` / `ads:write` for ads, `ads:spend` (the **Start ads** switch) to start ads and raise their spend, `accounts:write` for `Accounts.UpdateAsync` and `credits:read` for `Credits.GetAsync`. A call with a missing scope throws `PermissionDeniedException` with code `insufficient_scope`.
 
 ## Documentation
 

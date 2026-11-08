@@ -19,8 +19,9 @@ public class ResourceSurfaceTests
     [InlineData(typeof(FoldersResource), "ListAsync,CreateAsync,UpdateAsync,DeleteAsync")]
     [InlineData(typeof(HashtagSetsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync")]
     [InlineData(typeof(TagsResource), "ListAsync,CreateAsync,UpdateAsync,DeleteAsync,ApplyAsync")]
-    [InlineData(typeof(AccountsResource), "ListAsync,GetAsync")]
-    [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,OverviewAsync,AccountsAsync,BestTimesAsync,TagsAsync")]
+    [InlineData(typeof(AccountsResource), "ListAsync,GetAsync,UpdateAsync")]
+    [InlineData(typeof(AnalyticsResource), "PostAsync,PostsAsync,RefreshPostAsync,OverviewAsync,AccountsAsync,BestTimesAsync,TagsAsync")]
+    [InlineData(typeof(CreditsResource), "GetAsync")]
     [InlineData(typeof(LocationsResource), "SearchAsync,ValidateAsync")]
     [InlineData(typeof(PinterestResource), "ListProductsAsync,ValidateProductAsync")]
     [InlineData(typeof(AutomationsResource), "ListAsync,GetAsync,CreateAsync,UpdateAsync,DeleteAsync,ListEventsAsync")]
@@ -86,6 +87,7 @@ public class ResourceSurfaceTests
         Assert.Equal(typeof(TagsResource), client.GetProperty("Tags")!.PropertyType);
         Assert.Equal(typeof(AccountsResource), client.GetProperty("Accounts")!.PropertyType);
         Assert.Equal(typeof(AnalyticsResource), client.GetProperty("Analytics")!.PropertyType);
+        Assert.Equal(typeof(CreditsResource), client.GetProperty("Credits")!.PropertyType);
         Assert.Equal(typeof(LocationsResource), client.GetProperty("Locations")!.PropertyType);
         Assert.Equal(typeof(PinterestResource), client.GetProperty("Pinterest")!.PropertyType);
         Assert.Equal(typeof(AutomationsResource), client.GetProperty("Automations")!.PropertyType);
