@@ -153,7 +153,8 @@ public class PostCreateParams
     /// <c>{ ["trigger"] = new { keywords = new[] { "guide" }, match = "word" }, ["actions"] = new { dm = new { text = "..." }, public_reply = new { enabled = true, variations = new[] { "..." } } }, ["limits"] = new { max_sends = 500 }, ["platforms"] = new[] { "instagram", "facebook" } }</c>
     /// (see <see cref="AutomationCreateParams"/> for the fields, also
     /// <c>follow_gate</c> in the actions, Follow first, which applies to the
-    /// Instagram automation only). <c>platforms</c> makes
+    /// Instagram automation only, and <c>follow_up</c>, the follow-up, which
+    /// applies to both). <c>platforms</c> makes
     /// one automation per listed channel; each must be a channel of the post. Without
     /// it: Instagram when the post goes there, else Facebook. Needs the
     /// <c>automations:write</c> scope on the key (<c>403 insufficient_scope</c>, checked
@@ -350,7 +351,8 @@ public class PostUpdateParams
     /// Replaces the post's comment-to-DM automations (same shape as
     /// <see cref="PostCreateParams.CommentDmAutomation"/>; a channel no longer in
     /// <c>platforms</c> loses its automation). Omit to leave them untouched; to remove
-    /// them all set <see cref="RemoveCommentDmAutomation"/>. Needs the
+    /// them all set <see cref="RemoveCommentDmAutomation"/>. An <c>actions</c>
+    /// without <c>follow_up</c> keeps the stored follow-up. Needs the
     /// <c>automations:write</c> scope.
     /// </summary>
     [JsonPropertyName("comment_dm_automation")]

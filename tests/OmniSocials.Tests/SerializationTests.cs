@@ -181,6 +181,42 @@ public class SerializationTests
     }
 
     [Fact]
+    public async Task Follow_up_button_null_survives_in_a_dictionary_only()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"41\"}}");
+        handler.Enqueue(HttpStatusCode.OK, "{\"data\":{\"id\":\"41\"}}");
+        using var client = CreateClient(handler);
+
+        // The README's way to remove the follow-up button: a dictionary null is sent.
+        await client.Automations.UpdateAsync("41", new AutomationUpdateParams
+        {
+            Actions = new Dictionary<string, object?>
+            {
+                ["dm"] = new { text = "Here is the guide" },
+                ["follow_up"] = new Dictionary<string, object?> { ["button"] = null },
+            },
+        });
+        // A null property of an anonymous object is left out (WhenWritingNull).
+        await client.Automations.UpdateAsync("41", new AutomationUpdateParams
+        {
+            Actions = new Dictionary<string, object?>
+            {
+                ["dm"] = new { text = "Here is the guide" },
+                ["follow_up"] = new { enabled = true, text = "Did it help?", delay_hours = 23, button = (object?)null },
+            },
+        });
+
+        var removed = Parse(handler.RequestBodies[0]!).GetProperty("actions").GetProperty("follow_up");
+        Assert.Equal(JsonValueKind.Null, removed.GetProperty("button").ValueKind);
+
+        var followUp = Parse(handler.RequestBodies[1]!).GetProperty("actions").GetProperty("follow_up");
+        Assert.True(followUp.GetProperty("enabled").GetBoolean());
+        Assert.Equal(23, followUp.GetProperty("delay_hours").GetInt32());
+        Assert.False(followUp.TryGetProperty("button", out _));
+    }
+
+    [Fact]
     public async Task Threads_thread_parts_serialize_on_create()
     {
         var handler = new StubHttpMessageHandler();
@@ -246,6 +282,23 @@ public class SerializationTests
 
         var typed = liked!.Value.Deserialize<InboxLikeResponse>();
         Assert.True(typed!.Data.Liked);
+    }
+
+    [Fact]
+    public void Inbox_message_reads_every_attachment_with_the_video_still()
+    {
+        const string json = "{\"id\":\"501\",\"attachment\":{\"url\":\"https://cdn.test/a.jpg\",\"type\":\"image\"},"
+            + "\"attachments\":[{\"url\":\"https://cdn.test/a.jpg\",\"type\":\"image\",\"thumbnail_url\":null},"
+            + "{\"url\":\"https://cdn.test/b.mp4\",\"type\":\"video\",\"thumbnail_url\":\"https://cdn.test/b.jpg\"}]}";
+
+        var message = JsonSerializer.Deserialize<InboxMessage>(json)!;
+
+        Assert.Equal(2, message.Attachments.Count);
+        Assert.Equal("video", message.Attachments[1].Type);
+        Assert.Equal("https://cdn.test/b.jpg", message.Attachments[1].ThumbnailUrl);
+        Assert.Null(message.Attachments[0].ThumbnailUrl);
+        Assert.Equal("https://cdn.test/a.jpg", message.Attachment!.Url);
+        Assert.Empty(JsonSerializer.Deserialize<InboxMessage>("{\"id\":\"1\"}")!.Attachments);
     }
 
     [Fact]

@@ -122,7 +122,7 @@ await client.Posts.UpdateAsync(proposal.GetProperty("id").GetString()!, new Post
 
 ### Comment-to-DM automations
 
-Answer a keyword in an Instagram comment with a DM, once per person, with an optional public reply under the comment. Set `CommentDmAutomation` on `CreateAsync` (Instagram must be in `Channels`) and the automation is bound to that post; it starts listening once the post is live. Needs the opt-in `automations:write` scope on the key. `client.Automations` manages the automations themselves (`ListAsync`, `GetAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) and reads their activity (`ListEventsAsync`, `automations:read`). On `UpdateAsync`, `CommentDmAutomation` replaces the post's automation and `RemoveCommentDmAutomation = true` removes it (it sends the explicit `null` the null-omitting serializer would otherwise drop). Instagram rules: one private reply per comment, within 7 days; OmniSocials caps sends at 180 DMs an hour per account.
+Answer a keyword in an Instagram comment with a DM, once per person, with an optional public reply under the comment. Set `CommentDmAutomation` on `CreateAsync` (Instagram must be in `Channels`) and the automation is bound to that post; it starts listening once the post is live. Needs the opt-in `automations:write` scope on the key. `client.Automations` manages the automations themselves (`ListAsync`, `GetAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`) and reads their activity (`ListEventsAsync`, `automations:read`). On `UpdateAsync`, `CommentDmAutomation` replaces the post's automation and `RemoveCommentDmAutomation = true` removes it (it sends the explicit `null` the null-omitting serializer would otherwise drop). Instagram rules: one private reply per comment, within 7 days; OmniSocials caps sends at 700 DMs an hour per account, and an answer over the cap waits in a queue for up to a day.
 
 ```csharp
 var post = (await client.Posts.CreateAsync(new PostCreateParams
@@ -168,6 +168,25 @@ await client.Automations.UpdateAsync(automationId, new AutomationUpdateParams
             enabled = true,
             first_message = new { text = "Tap the button and I'll send you the link 👇", button = "Send me the link" },
             not_following = new { text = "Almost there! Follow @yourbrand first, then tap the button again.", button = "I follow now" },
+        },
+    },
+});
+```
+
+A follow-up (`["follow_up"]` in `Actions`, Instagram and Facebook) sends one more DM `delay_hours` (1 to 23, default 23) after the answer went out, with an optional link `button`. Meta allows an automatic message only within 24 hours after the person's last DM, button tap or quick reply; the comment and the private reply do not open that window. So on an Instagram comment with Follow first off the first DM becomes a tap step, a short text with one button (`tap`, default "Tap the button and I'll send you the link 👇" / "Send me the link"), and the tap sends the DM text. Until the tap the event is `waiting` with `follow_gate.mode` `"tap"`; people who never tap get no link and no follow-up. With Follow first on, its own tap is the tap; DM and story reply triggers need none. A Facebook comment answer has no button, so only people who answer the DM in Messenger get the follow-up. At send time it is skipped when the automation is off, the person said stop, your team answered by hand or the window closed: each event's `follow_up` object carries `state`, `due_at`, `sent_at` and `reason` / `reason_label`, and `stats.follow_ups_sent` / `stats.follow_ups_skipped` count them. `null`, `false` or `enabled = false` turns it off and keeps the texts; on update it merges. To remove the button send `["follow_up"] = new Dictionary<string, object?> { ["button"] = null }`: a null property of an anonymous object is left out, a dictionary null is sent. `enabled = true` on an X automation is a `400 follow_up_not_supported`.
+
+```csharp
+await client.Automations.UpdateAsync(automationId, new AutomationUpdateParams
+{
+    Actions = new Dictionary<string, object?>
+    {
+        ["dm"] = new { text = "Here is the guide: https://example.com/guide" },
+        ["follow_up"] = new
+        {
+            enabled = true,
+            text = "Did the guide help? Book a free call if you want a hand.",
+            delay_hours = 23,
+            button = new { title = "Book a call", url = "https://example.com/call" },
         },
     },
 });

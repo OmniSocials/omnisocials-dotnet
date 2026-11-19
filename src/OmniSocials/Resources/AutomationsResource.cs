@@ -13,9 +13,10 @@ namespace OmniSocials;
 /// are on for the workspace; every X answer ends with "Reply STOP to stop
 /// automatic messages." and a person who replies STOP gets no automatic DM
 /// again. Meta rules, the same on Instagram and Facebook: one private reply
-/// per comment, within 7 days. OmniSocials caps sends at 180 DMs an hour per
+/// per comment, within 7 days. OmniSocials caps sends at 700 DMs an hour per
 /// account on Instagram and Facebook, and at 15 per 15 minutes and 450 a day
-/// on X; an answer over a cap waits in a queue ("queued") for up to an hour.
+/// on X; an answer over a cap waits in a queue ("queued") for up to about a
+/// day on Instagram and Facebook (an hour on X).
 /// The scopes are opt-in on the API key: <c>automations:read</c> for
 /// list / get / events, <c>automations:write</c> for create / update / delete
 /// (and for <see cref="PostCreateParams.CommentDmAutomation"/>).
@@ -65,9 +66,14 @@ public sealed class AutomationsResource
     /// <see cref="AutomationCreateParams.Actions"/> is required; its
     /// <c>follow_gate</c> (Follow first, Instagram only) sends the link only to
     /// people who follow the account, and a person who has not followed yet is
-    /// an event with outcome "waiting". Requires the
+    /// an event with outcome "waiting". Its <c>follow_up</c> (Instagram and
+    /// Facebook) sends one more DM <c>delay_hours</c> (1 to 23, default 23)
+    /// after the answer; on an Instagram comment with Follow first off the
+    /// first DM becomes a tap step and the event is "waiting" until the tap
+    /// (see <see cref="AutomationCreateParams.Actions"/>). Requires the
     /// <c>automations:write</c> scope (opt-in on the API key). Errors:
     /// <c>400 validation_error</c>, <c>400 follow_gate_instagram_only</c>,
+    /// <c>400 follow_up_not_supported</c> (a follow-up switched on on X),
     /// <c>400 post_not_instagram</c>,
     /// <c>400 post_not_facebook</c>, <c>400 post_required</c>,
     /// <c>404 post_not_found</c>, <c>404 instagram_media_not_found</c>,
@@ -89,7 +95,10 @@ public sealed class AutomationsResource
     /// <c>public_reply.enabled = false</c> or <c>variations = []</c> turns the
     /// public reply off; <c>follow_gate = new { enabled = false }</c> turns
     /// Follow first off and keeps its texts, new texts keep the switch, and
-    /// <c>["follow_gate"] = null</c> turns it off; <c>["max_sends"] = null</c>
+    /// <c>["follow_gate"] = null</c> turns it off; <c>follow_up</c> merges the
+    /// same way (<c>tap</c> key by key, a dictionary <c>["button"] = null</c>
+    /// removes the button, <c>enabled = false</c> turns it off and keeps the
+    /// texts); <c>["max_sends"] = null</c>
     /// removes that limit.
     /// <c>Status = "paused"</c> pauses and <c>"active"</c> resumes; another
     /// <c>PostId</c> / <c>InstagramMediaId</c> / <c>FacebookPostId</c> moves the
@@ -99,7 +108,8 @@ public sealed class AutomationsResource
     /// <c>completed</c> automation starts again when its limits or trigger
     /// change. Requires the
     /// <c>automations:write</c> scope. <c>400 no_fields</c> when the body is
-    /// empty.
+    /// empty; <c>400 follow_up_not_supported</c> for a follow-up switched on on
+    /// an X automation.
     /// </summary>
     public Task<JsonElement?> UpdateAsync(string id, AutomationUpdateParams parameters, CancellationToken cancellationToken = default)
         => _client.PatchAsync($"/automations/{Uri.EscapeDataString(id)}", parameters, cancellationToken);
@@ -112,7 +122,8 @@ public sealed class AutomationsResource
     /// <c>GET /automations/:id/events</c>: the automation's activity, one event
     /// per person it answered, skipped or failed on. Filter by
     /// <see cref="AutomationEventListParams.Outcome"/> ("sent", "skipped",
-    /// "failed", "pending", "queued", "opted_out", "waiting"); <c>Limit</c> is 1 to 100 (default 25),
+    /// "failed", "pending", "queued", "opted_out", "waiting": Follow first or
+    /// the tap step of a follow-up); <c>Limit</c> is 1 to 100 (default 25),
     /// <c>Offset</c> skips. Requires the <c>automations:read</c> scope.
     /// <para>
     /// The response is not the plain list envelope:
@@ -129,8 +140,20 @@ public sealed class AutomationsResource
     /// <c>trigger_id</c>, <c>trigger_text</c>, <c>message</c> (the DM sent),
     /// <c>public_reply</c>, <c>platform_message_id</c>, <c>follow_gate</c>
     /// (Follow first: <c>state</c> "waiting" or "done", <c>asked_at</c>,
-    /// <c>taps</c>, <c>followed</c>, <c>checked</c>, <c>after_ask</c>; else null),
-    /// <c>created_at</c> and <c>sent_at</c>.
+    /// <c>taps</c>, <c>followed</c>, <c>checked</c>, <c>after_ask</c>,
+    /// <c>mode</c>; else null; <c>mode</c> is "follow", or "tap" for the tap
+    /// step of a follow-up, which checks no follow: <c>checked</c> stays false
+    /// and <c>followed</c> is null after the tap), <c>follow_up</c> (the
+    /// follow-up of this answer: <c>state</c> "scheduled", "sending", "sent",
+    /// "skipped" or "failed", <c>due_at</c>, <c>sent_at</c>, <c>reason</c>,
+    /// <c>reason_label</c>, <c>platform_message_id</c>; else null.
+    /// <c>reason</c> only on "skipped" and "failed": "automation_off",
+    /// "follow_up_off", "plan_inactive", "opted_out", "team_answered",
+    /// "window_closed" (the person's last tap or message is older than 24
+    /// hours minus 15 minutes) or "cannot_message" for a skip, the platform's
+    /// error text or "interrupted" (a send that died midway, never sent again)
+    /// for a failure; <c>reason_label</c> = the skip in plain words, or the
+    /// error text), <c>created_at</c> and <c>sent_at</c>.
     /// </para>
     /// </summary>
     public Task<JsonElement?> ListEventsAsync(string id, AutomationEventListParams? parameters = null, CancellationToken cancellationToken = default)

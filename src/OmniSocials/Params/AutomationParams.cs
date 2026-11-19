@@ -20,9 +20,10 @@ public sealed class AutomationEventListParams
 {
     /// <summary>
     /// "sent", "skipped", "failed", "pending", "queued" (the answer waits for a
-    /// free slot under the send cap and goes out within the hour),
+    /// free slot under the send cap and goes out as soon as there is room),
     /// "opted_out" (the person replied STOP on X) or "waiting" (Follow first:
-    /// asked to follow, the link goes out after the follow).
+    /// asked to follow, the link goes out after the follow; or the tap step of
+    /// a follow-up: the link goes out after the tap).
     /// </summary>
     public string? Outcome { get; set; }
 
@@ -106,6 +107,33 @@ public class AutomationCreateParams
     /// X automation is a <c>400 follow_gate_instagram_only</c>. The response
     /// carries the gate with its texts (null on Facebook and X) and
     /// <c>stats.followed</c>.
+    /// <para>
+    /// An optional <c>["follow_up"] = new { enabled = true, text = "...", delay_hours = 23, button = new { title = "...", url = "https://..." }, tap = new { text = "...", button = "..." } }</c>:
+    /// the follow-up, Instagram and Facebook. It sends one more DM
+    /// <c>delay_hours</c> (1 to 23, default 23) after the answer (the
+    /// <c>dm</c> text) went out. <c>text</c> is required when it is on (max
+    /// 1000 characters, 640 with a <c>button</c>); <c>button</c> is an optional
+    /// link button (<c>title</c> 1 to 20 characters, <c>url</c> an https:// or
+    /// http:// address of up to 2000). Meta allows an automatic message only
+    /// within 24 hours after the person's last DM, button tap or quick reply;
+    /// the comment and the private reply do not open that window. So on an
+    /// Instagram comment with Follow first off the first DM becomes a tap
+    /// step, a short text with one button (<c>tap</c>, Instagram only,
+    /// <c>text</c> max 640 and <c>button</c> max 20 characters; default "Tap
+    /// the button and I'll send you the link 👇" / "Send me the link"): the
+    /// tap sends the link, and until then the event is "waiting" with
+    /// <c>follow_gate.mode</c> "tap". People who never tap get no link and no
+    /// follow-up. With Follow first on, its own tap is the tap; DM and story
+    /// reply triggers need none. A Facebook comment answer has no button: only
+    /// people who answer the DM in Messenger get the follow-up. <c>null</c>,
+    /// <c>false</c> or <c>enabled = false</c> turns it off and keeps the texts.
+    /// <c>enabled = true</c> on an X automation is a
+    /// <c>400 follow_up_not_supported</c>. The response carries
+    /// <c>actions.follow_up</c> (<c>enabled</c>, <c>text</c>,
+    /// <c>delay_hours</c>, <c>button</c> or null, <c>tap</c> filled in on
+    /// Instagram and null on Facebook; the whole follow-up is null on X) and
+    /// <c>stats.follow_ups_sent</c> / <c>stats.follow_ups_skipped</c>.
+    /// </para>
     /// </summary>
     [JsonPropertyName("actions")]
     public Dictionary<string, object?>? Actions { get; set; }
@@ -163,6 +191,12 @@ public class AutomationUpdateParams
     /// <c>enabled = false</c> or <c>variations = []</c> turns it off.
     /// <c>follow_gate</c> merges too: <c>enabled = false</c> keeps the texts,
     /// new texts keep the switch, <c>["follow_gate"] = null</c> turns it off.
+    /// <c>follow_up</c> merges the same way: keys left out keep their value,
+    /// <c>tap</c> merges key by key, <c>enabled = false</c> turns it off and
+    /// keeps the texts. To remove the button send
+    /// <c>["follow_up"] = new Dictionary&lt;string, object?&gt; { ["button"] = null }</c>
+    /// (a null property of an anonymous object is left out; a dictionary null
+    /// is sent).
     /// </summary>
     [JsonPropertyName("actions")]
     public Dictionary<string, object?>? Actions { get; set; }
