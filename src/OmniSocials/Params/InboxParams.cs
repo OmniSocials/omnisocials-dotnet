@@ -88,6 +88,21 @@ public sealed class InboxReplyParams
     /// </summary>
     [JsonPropertyName("include_next")]
     public bool? IncludeNext { get; set; }
+
+    /// <summary>
+    /// Facebook comment replies only: when true, OmniSocials puts the tag
+    /// <c>@[&lt;commenter id&gt;]</c> before <see cref="Text"/>, so the reply
+    /// starts with the commenter's name as a clickable link and Facebook
+    /// notifies them. Do not write the name or <c>@[id]</c> in the text
+    /// yourself. Only on comments on the Facebook Page's own posts; any other
+    /// conversation (other platforms, Facebook DMs and mention conversations,
+    /// a comment with no Facebook user id) throws a 400
+    /// <see cref="ApiException"/> with code <c>mention_not_supported</c> and
+    /// nothing is sent. The response then carries
+    /// <see cref="InboxReplyResponse.Mention"/>.
+    /// </summary>
+    [JsonPropertyName("mention_author")]
+    public bool? MentionAuthor { get; set; }
 }
 
 /// <summary>Query parameters for <c>GET /inbox/next</c>. All optional.</summary>

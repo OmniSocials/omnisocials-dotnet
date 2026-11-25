@@ -284,6 +284,42 @@ public sealed class InboxReplyResponse
     /// </summary>
     [JsonPropertyName("remaining")]
     public int? Remaining { get; set; }
+
+    /// <summary>
+    /// Only when <see cref="InboxReplyParams.MentionAuthor"/> was set: whether
+    /// Facebook made the commenter's name a clickable tag.
+    /// </summary>
+    [JsonPropertyName("mention")]
+    public InboxReplyMention? Mention { get; set; }
+}
+
+/// <summary>
+/// Result of <see cref="InboxReplyParams.MentionAuthor"/> on
+/// <see cref="InboxResource.ReplyAsync"/>.
+/// </summary>
+public sealed class InboxReplyMention
+{
+    /// <summary>
+    /// <c>tagged</c>: Facebook shows the name as a clickable tag and notifies
+    /// the person. <c>plain_name</c>: Facebook did not accept the tag;
+    /// OmniSocials edited the reply so it starts with "@Name" as plain text
+    /// (no link, no notification). <c>failed</c>: Facebook did not accept the
+    /// tag and the edit failed; the reply can show the raw <c>@[id]</c> text:
+    /// delete it with <see cref="InboxResource.DeleteMessageAsync"/> on
+    /// <c>data.id</c> and send it again without <c>mention_author</c>.
+    /// <c>unverified</c>: the reply was posted, but OmniSocials could not read
+    /// it back from Facebook to check the tag.
+    /// </summary>
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+
+    /// <summary>The commenter's name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    /// <summary>One sentence that explains the status.</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
 }
 
 /// <summary>

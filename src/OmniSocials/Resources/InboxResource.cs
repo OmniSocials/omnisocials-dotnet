@@ -118,6 +118,16 @@ public sealed class InboxResource
     /// queue order and filters; null when nothing is waiting) and
     /// <c>remaining</c> in the response. Saves the extra call when working
     /// through the inbox.
+    ///
+    /// Facebook comment replies: set
+    /// <see cref="InboxReplyParams.MentionAuthor"/> to tag the commenter.
+    /// OmniSocials puts <c>@[&lt;commenter id&gt;]</c> before the text, so the
+    /// reply starts with their name as a clickable link and Facebook notifies
+    /// them; do not write the name yourself. The response then carries
+    /// <c>mention</c> (<see cref="InboxReplyResponse.Mention"/>: status
+    /// <c>tagged</c>, <c>plain_name</c>, <c>failed</c> or <c>unverified</c>).
+    /// Any other conversation throws a 400 <see cref="ApiException"/> with
+    /// code <c>mention_not_supported</c> and nothing is sent.
     /// </summary>
     public Task<JsonElement?> ReplyAsync(string conversationId, InboxReplyParams parameters, CancellationToken cancellationToken = default)
         => _client.PostAsync($"/inbox/conversations/{Uri.EscapeDataString(conversationId)}/reply", parameters, cancellationToken);

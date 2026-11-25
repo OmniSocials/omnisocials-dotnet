@@ -941,6 +941,18 @@ while (item.ValueKind != JsonValueKind.Null)
 }
 ```
 
+**Tag the commenter on Facebook.** On a Facebook comment, pass `MentionAuthor = true` to `reply` and OmniSocials puts the tag `@[<commenter id>]` before your text: the reply starts with the commenter's name as a clickable link, and Facebook notifies them. Do not write the name or `@[id]` yourself. The answer then carries `mention` with `Mention.Status` (typed: `InboxReplyResponse.Mention`): `tagged` (clickable tag), `plain_name` (Facebook did not accept the tag; the reply was edited to start with "@Name" as plain text), `failed` (the reply can show the raw `@[id]` text: delete it with `DeleteMessageAsync` on `data.id` and send it again without the option) or `unverified` (posted, but not checked). Only comments on the Facebook Page's own posts; any other conversation answers 400 `mention_not_supported` and nothing is sent.
+
+```csharp
+var reply = (await client.Inbox.ReplyAsync(conversationId, new InboxReplyParams
+{
+    Text = "Thanks, we ship to Belgium too!",
+    MessageId = messageId,
+    MentionAuthor = true, // Facebook comments only; do not write the name yourself
+}))?.Deserialize<InboxReplyResponse>();
+if (reply?.Mention?.Status != "tagged") Console.WriteLine(reply?.Mention?.Message);
+```
+
 X DM replies cost 2 prepaid credits per send, debited from the company balance before the send and auto-refunded if the send fails. `ReplyAsync` can throw a 402 `ApiException` (402 has no dedicated subclass, so check `Status`/`Code`) with one of two codes: `"insufficient_credits"` (the balance can't cover the 2 credits) or `"x_inbox_suspended"` (the workspace's X inbox auto-suspended when the balance hit zero; a top-up turns it back on by itself, but DMs that arrive while suspended are not recovered):
 
 ```csharp
